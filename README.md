@@ -4,10 +4,10 @@ An example Login.gov client application which authenticates users via OpenID Con
 
 ## Installation
 
-Install packages:
+Install the app's source code:
 
 ```sh
-go install github.com/s2t2/identity-oidc-gin
+go get github.com/s2t2/identity-oidc-gin
 ```
 
 ## Usage
