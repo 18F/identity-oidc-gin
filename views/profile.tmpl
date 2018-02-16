@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>{{ .title }}</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" type="text/css" media="all" href="/assets/stylesheets/basscss.min.css"></style>
+  </head>
+  <body class="bg-darken-1">
+    <!-- todo: include: "success" template -->
+
+    <div class="container py2">
+      <h1>{{ .title }}</h1>
+
+      <div class="clearfix py2 mxn1">
+      {{ range .values }}
+        <div class="sm-col sm-col-6 px1">
+          <div class="p2 mb2 bg-white rounded">
+            <div class="p1 mb1 bg-darken-1 col-7"></div>
+            <div class="p1 mb1 bg-darken-1 col-10"></div>
+            <div class="p1 mb1 bg-darken-1 col-5"></div>
+            <div class="p1 mb1 bg-darken-1 col-8"></div>
+            <div class="p1 mb1 bg-darken-1 col-6"></div>
+            <div class="p1 mb1 bg-darken-1 col-11"></div>
+            <div class="p1 mb1 bg-darken-1 col-8"></div>
+          </div>
+        </div>
+      {{ end }}
+      </div>
+    </div>
+  </body>
+</html>

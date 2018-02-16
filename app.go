@@ -12,7 +12,16 @@ func main() {
 
 	router.GET("/", func(context *gin.Context) {
 		context.HTML(http.StatusOK, "index.tmpl", gin.H{
-			"title": "Hello World",
+			"title": "Login.gov OIDC Client (Gin)",
+		})
+	})
+
+	router.GET("/profile", func(context *gin.Context) {
+		values := []int{1,2,3,4,5,6,7,8}
+
+		context.HTML(http.StatusOK, "profile.tmpl", gin.H{
+			"title": "Profile Page",
+			"values": values,
 		})
 	})
 
