@@ -19,9 +19,16 @@ func main() {
 	router.GET("/profile", func(context *gin.Context) {
 		values := []int{1,2,3,4,5,6,7,8}
 
+		type User struct {
+		    Email string
+		    FamilyName string
+		    GivenName string
+		}
+
 		context.HTML(http.StatusOK, "profile.tmpl", gin.H{
 			"title": "Profile Page",
 			"values": values,
+			"user": User{Email: "test.user@gmail.com", GivenName: "Test", FamilyName:"User"},
 		})
 	})
 

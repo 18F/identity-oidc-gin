@@ -7,11 +7,34 @@
     <link rel="stylesheet" type="text/css" media="all" href="/assets/stylesheets/basscss.min.css"></style>
   </head>
   <body class="bg-darken-1">
+
     <!-- todo: include: "success" template -->
+    {{ if .user }}
+    <div class="p2 bg-green white clearfix">
+      <div class="right sm-show">
+        <a href="/auth/login-gov/logout" title="Sign out of this application, but not login.gov.">Logout</a> |
+        <a href="/auth/login-gov/oidc-logout" title="Sign out of this application as well as login.gov.">RP-Initiated Logout</a>
+      </div>
+
+      <span class="bold">Success!</span>
+      <span>Email: <strong>{{ .user.Email }}</strong></span>
+
+      {{ if and .user.GivenName .user.FamilyName}}
+      <span class="ml1 mr1">|</span>
+      <span>Name: <strong>{{ .user.GivenName }} {{ .user.FamilyName }}</strong></span>
+      {{ end }}
+    </div>
+    {{ end }}
+
+
+
+
+
 
     <div class="container py2">
       <h1>{{ .title }}</h1>
 
+      <!-- todo: include: "page_content" template -->
       <div class="clearfix py2 mxn1">
       {{ range .values }}
         <div class="sm-col sm-col-6 px1">
