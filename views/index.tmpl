@@ -3,8 +3,33 @@
 	<head>
 		<meta charset="utf-8">
 		<title>{{ .title }}</title>
+		<meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" type="text/css" media="all" href="/assets/stylesheets/basscss.min.css"></style>
 	</head>
-	<body>
-		<h1>{{ .title }}</h1>
-	</body>
+	<body class="bg-darken-1">
+    <div class="container py2">
+      <h1>{{ .title }}</h1>
+
+      <!--div class="mb1 right-align">
+        <a href="/auth/login-gov/login" class="btn btn-outline bg-white navy">
+          <img class="align-middle" width="125" src="/images/login-gov.svg" alt="Login gov">
+        </a>
+      </div-->
+
+      <div class="mb1 right-align">
+        <a href="/auth/login-gov/login/loa-1" class="btn btn-outline bg-white navy" title="Sign in via login.gov using Level of Access 1 (shares email and password only).">
+          <img class="align-middle" width="125" src="assets/images/login-gov.svg" alt="Login gov">
+          (LOA1)
+        </a>
+      </div>
+
+      <div class="mb1 right-align">
+        <a href="/auth/login-gov/login/loa-3" class="btn btn-outline bg-white navy" title="Sign in via login.gov using Level of Access 3 (shares all requested personal information).">
+          <img class="align-middle" width="125" src="assets/images/login-gov.svg" alt="Login gov">
+          (LOA3)
+        </a>
+      </div>
+
+    </div>
+  </body>
 </html>
