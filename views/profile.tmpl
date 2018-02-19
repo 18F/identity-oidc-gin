@@ -9,7 +9,7 @@
   <body class="bg-darken-1">
 
     <!-- todo: include: "success" template -->
-    {{ if .user }}
+  {{ with .user -}}
     <div class="p2 bg-green white clearfix">
       <div class="right sm-show">
         <a href="/auth/login-gov/logout" title="Sign out of this application, but not login.gov.">Logout</a> |
@@ -17,14 +17,14 @@
       </div>
 
       <span class="bold">Success!</span>
-      <span>Email: <strong>{{ .user.Email }}</strong></span>
+      <span>Email: <strong>{{ .Email }}</strong></span>
 
-      {{ if and .user.GivenName .user.FamilyName}}
+    {{ if and .GivenName .FamilyName}}
       <span class="ml1 mr1">|</span>
-      <span>Name: <strong>{{ .user.GivenName }} {{ .user.FamilyName }}</strong></span>
-      {{ end }}
-    </div>
+      <span>Name: <strong>{{ .GivenName }} {{ .FamilyName }}</strong></span>
     {{ end }}
+    </div>
+  {{- end }}
 
 
 

@@ -14,6 +14,7 @@
   + [Intro to Templates](https://www.calhoun.io/intro-to-templates-p3-functions/)
   + [Build a Web Application: Templates](https://astaxie.gitbooks.io/build-web-application-with-golang/en/07.4.html)
   + [Golang Templates Cheatsheet](https://curtisvermeeren.github.io/2017/09/14/Golang-Templates-Cheatsheet.html)
+  + [Example of using Templates](http://goinbigdata.com/example-of-using-templates-in-golang/)
 
 ## Gin Web Framework
 
