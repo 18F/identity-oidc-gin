@@ -8,6 +8,7 @@ Install the app's source code:
 
 ```sh
 go get github.com/s2t2/identity-oidc-gin
+cd $GOPATH/src/github.com/s2t2/identity-oidc-gin
 ```
 
 ## Usage
@@ -15,7 +16,7 @@ go get github.com/s2t2/identity-oidc-gin
 Run the app:
 
 ```sh
-$GOPATH/bin/identity-oidc-gin # or just... identity-oidc-gin
+go run app.go
 ```
 
 Then view in browser at localhost:8080.
