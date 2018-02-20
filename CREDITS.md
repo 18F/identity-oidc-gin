@@ -24,8 +24,9 @@
 ## Goth and Gothic
 
   + [Goth](https://github.com/markbates/goth)
-  + [Goth Gothic](https://github.com/markbates/goth/blob/master/gothic/gothic.go)
+  + [Goth Provider](https://github.com/markbates/goth/blob/master/provider.go)
   + [Goth OIDC Provider](https://github.com/markbates/goth/blob/master/providers/openidConnect/openidConnect.go)
+  + [Goth Gothic](https://github.com/markbates/goth/blob/master/gothic/gothic.go)
   + [Goth Example](https://github.com/markbates/goth/blob/master/examples/main.go)
   + [Gothic and Gin Example](https://github.com/oov/gothic/blob/master/examples/gin.go)
 

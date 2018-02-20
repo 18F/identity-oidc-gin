@@ -3,6 +3,7 @@ package main
 import (
   "fmt"
   "net/http"
+  "reflect"
   "github.com/gin-gonic/gin"
   "github.com/markbates/goth"
   "github.com/markbates/goth/gothic"
@@ -13,16 +14,20 @@ func main() {
 
   // IDENTITY PROVIDER
 
+  gothic.GetProviderName = func(req *http.Request) (string, error) {
+    return "openid-connect", nil // name must be "openid-connect" to bypass "no provider for XYZ exists"
+  } // to bypass "you must select a provider" response from gothic.BeginAuthHandler()
+
   key := "mykey" // os.Getenv("OPENID_CONNECT_KEY")
   secret := "mysecret" // os.Getenv("OPENID_CONNECT_SECRET")
   callbackUrl := "http://localhost:3000/openid-connect-login" // "http://localhost:8080/auth/login-gov/callback"
   discoveryUrl := "https://mitreid.org/.well-known/openid-configuration" // os.Getenv("OPENID_CONNECT_DISCOVERY_URL")
-  fmt.Println(key, secret, callbackUrl, discoveryUrl)
+  //fmt.Println(key, secret, callbackUrl, discoveryUrl)
 
   provider, err := openidConnect.New(key, secret, callbackUrl, discoveryUrl)
 
   if provider != nil {
-    fmt.Println("USING OIDC PROVIDER", provider)
+    fmt.Println("USING OIDC PROVIDER", reflect.TypeOf(provider))
     goth.UseProviders(provider)
   } else if err != nil {
     fmt.Println("OIDC PROVIDER ERROR", err)
@@ -36,7 +41,7 @@ func main() {
 
   router.GET("/", renderIndex)
   router.GET("/profile", renderProfile)
-  router.GET("/auth/login-gov/login/loa-1", tempRedirectToProfile)
+  router.GET("/auth/login-gov/login/loa-1", loginGovAuth)
   router.GET("/auth/login-gov/login/loa-3", tempRedirectToProfile)
   router.GET("/auth/login-gov/logout", tempRedirectHome)
   router.GET("/auth/login-gov/logout/rp", tempRedirectHome)
