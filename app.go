@@ -18,13 +18,13 @@ func main() {
     return "openid-connect", nil // name must be "openid-connect" to bypass "no provider for XYZ exists"
   } // to bypass "you must select a provider" response from gothic.BeginAuthHandler()
 
-  key := "mykey" // os.Getenv("OPENID_CONNECT_KEY")
+  clientId := "login-nodejs-govt-test" // os.Getenv("OPENID_CONNECT_KEY")
   secret := "mysecret" // os.Getenv("OPENID_CONNECT_SECRET")
   callbackUrl := "http://localhost:3000/openid-connect-login" // "http://localhost:8080/auth/login-gov/callback"
   discoveryUrl := "https://mitreid.org/.well-known/openid-configuration" // os.Getenv("OPENID_CONNECT_DISCOVERY_URL")
   //fmt.Println(key, secret, callbackUrl, discoveryUrl)
 
-  provider, err := openidConnect.New(key, secret, callbackUrl, discoveryUrl)
+  provider, err := openidConnect.New(clientId, secret, callbackUrl, discoveryUrl)
 
   if provider != nil {
     fmt.Println("USING OIDC PROVIDER", reflect.TypeOf(provider))
@@ -43,6 +43,7 @@ func main() {
   router.GET("/profile", renderProfile)
   router.GET("/auth/login-gov/login/loa-1", loginGovAuth)
   router.GET("/auth/login-gov/login/loa-3", tempRedirectToProfile)
+  //router.GET("/auth/login-gov/callback", tempRedirectToProfile)
   router.GET("/auth/login-gov/logout", tempRedirectHome)
   router.GET("/auth/login-gov/logout/rp", tempRedirectHome)
   router.GET("/ping", apiPing)
