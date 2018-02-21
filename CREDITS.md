@@ -37,6 +37,10 @@
   + [Gothic and Gin Example](https://github.com/oov/gothic/blob/master/examples/gin.go)
   + [MyMove](https://github.com/transcom/mymove/) -- uses Gothic, amazing reference
 
+## JSON Web Tokens
+
+  + [JWT Go](https://github.com/dgrijalva/jwt-go)
+
 ## Assets
 
 Stylesheets and images borrowed from the [Sinatra SAML Client](https://github.com/18F/identity-sp-sinatra/).

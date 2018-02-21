@@ -14,6 +14,7 @@ import (
   "github.com/markbates/goth"
   "github.com/markbates/goth/gothic"
   "github.com/markbates/goth/providers/openidConnect"
+  "github.com/dgrijalva/jwt-go"
 )
 
 type User struct {
@@ -66,15 +67,15 @@ func redirectProfile(c *gin.Context)  {
 //
 
 const providerName = "openid-connect"
+const clientId = "urn:gov:gsa:openidconnect:sp:gin" // os.Getenv("OPENID_CONNECT_KEY")
 
 // registers login.gov as the OIDC identity provider
 func useProvider()  {
   gothic.GetProviderName = func(req *http.Request) (string, error) { return providerName, nil}
 
-  clientId := "urn:gov:gsa:openidconnect:sp:gin" // os.Getenv("OPENID_CONNECT_KEY")
-  clientSecret := "mysecret" //todo: JWT // os.Getenv("OPENID_CONNECT_SECRET")
-  callbackUrl := "http://localhost:8080/auth/login-gov/callback"
-  discoveryUrl := "http://localhost:3000/.well-known/openid-configuration"
+  const clientSecret = "super secret" // os.Getenv("OPENID_CONNECT_SECRET")
+  const callbackUrl = "http://localhost:8080/auth/login-gov/callback"
+  const discoveryUrl = "http://localhost:3000/.well-known/openid-configuration"
 
   provider, err := openidConnect.New(clientId, clientSecret, callbackUrl, discoveryUrl)
   if err != nil { fmt.Println("OIDC PROVIDER ERROR", err) }
@@ -116,59 +117,54 @@ func parameterizedAuthURL() (string, error)  {
   return authURL.String(), err
 }
 
+// see: https://developers.login.gov/oidc/#token-response
+type TokenResponse struct {
+  AccessToken string `json:"access_token"`
+  TokenType string `json:"token_type"`
+  ExpiresIn int `json:"expires_in"`
+  IDToken string `json:"id_token"`
+}
+
 func loginGovCallback(c *gin.Context)  {
   fmt.Println("CALLBACK")
 
+  tokenURL := "http://localhost:3000/api/openid_connect/token" // TODO: get from provider.openidConfig
+
   // COMPILE REQUEST PARAMS
 
-  q:= c.Request.URL.Query() // get code and state from URL params
+  q:= c.Request.URL.Query()
   code := q["code"][0]
   //state := q["state"][0]
-  //fmt.Println("CODE", code)
-  //fmt.Println("STATE", state)
+
+  clientAssertion, err := generateJWT(tokenURL)
+  if err != nil {fmt.Println("CLIENT ASSERTION ERROR") }
 
   tokenParams := url.Values{}
-  tokenParams.Set("client_assertion", "my JWT")
+  tokenParams.Set("client_assertion", clientAssertion)
   tokenParams.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
   tokenParams.Set("code", code)
   tokenParams.Set("grant_type", "authorization_code")
-  fmt.Println(tokenParams)
 
   // ISSUE REQUEST
 
-  tokenURL := "http://localhost:3000/api/openid_connect/token" // TODO: get from provider.openidConfig
   resp, err := http.PostForm(tokenURL, tokenParams)
-  if err != nil {return}
-  fmt.Println("TOKEN RESPONSE IS A:", reflect.TypeOf(resp))
+  if err != nil { fmt.Println("POST REQUEST ERROR") }
+  fmt.Println("TOKEN RESPONSE:", reflect.TypeOf(resp), resp.Status)
 
   // PARSE RESPONSE
 
-  //defer resp.Body.Close()
-  //body, err := ioutil.ReadAll(resp.Body)
-  //if err != nil {return}
-  //fmt.Println("TOKEN RESPONSE BODY IS A:", reflect.TypeOf(body), reflect.TypeOf(body).Kind()  )
-//
-  //// see: https://developers.login.gov/oidc/#token-response
-  //type TokenResponse struct {
-  //  AccessToken string `json:"access_token"`
-  //  TokenType string `json:"token_type"`
-  //  ExpiresIn int `json:"expires_in"`
-  //  IDToken string `json:"id_token"`
-  //}
-//
-  //var tr TokenResponse
-	//parseErr := json.Unmarshal(body, &tr)
-  //if parseErr != nil {
-  //  fmt.Println("JSON PARSING ERROR")
-  //  return
-  //}
-  //fmt.Println("TOKEN RESPONSE PARSED:", reflect.TypeOf(tr), tr)
-  //fmt.Println("... ACCESS TOKEN:", tr.AccessToken)
-  //fmt.Println("... TOKEN TYPE:", tr.TokenType)
-  //fmt.Println("... ID TOKEN:", tr.IDToken)
-//
-  //js, err := json.Marshal(tr)
-  //fmt.Println("JSON:", js)
+  defer resp.Body.Close()
+  body, err := ioutil.ReadAll(resp.Body)
+  if err != nil {fmt.Println("READ BYTES ERR") }
+  //fmt.Println("TOKEN RESPONSE BODY:", reflect.TypeOf(body), reflect.TypeOf(body).Kind()  )
+
+  var tr TokenResponse
+  parseErr := json.Unmarshal(body, &tr)
+  if parseErr != nil { fmt.Println("JSON UNMARSHAL ERROR") }
+
+  js, err := json.Marshal(tr)
+  if err != nil { fmt.Println("JSON MARSHAL ERROR") }
+  fmt.Println("TOKEN RESPONSE JSON:", string(js))
 
   //TODO: store token and state in session for use during rp-initiated logout
   //c.Next()
@@ -183,4 +179,48 @@ func generateNonce() string {
     nonceBytes[i] = byte(random.Int63() % 256)
   }
   return base64.URLEncoding.EncodeToString(nonceBytes)
+}
+
+// adapted from source: https://github.com/transcom/mymove/blob/b6f98942d64d8d12f502bea36d26ad65a5d8cd18/pkg/auth/auth.go#L193
+func generateJWT(tokenURL string) (string, error) {
+
+  // GENERATE NEW TOKEN
+
+  const sessionExpiryInMinutes = 10
+
+  claims := &jwt.StandardClaims{
+    Issuer: clientId,
+    Subject: clientId,
+    Audience: tokenURL,
+    Id: generateNonce(),
+    ExpiresAt: time.Now().Add(time.Minute * sessionExpiryInMinutes).Unix(),
+  }
+
+  token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+
+  // READ KEY FILE
+
+  pemPath := "keys/login-gov/sp_gin_demo.key"
+
+  pem, err := ioutil.ReadFile(pemPath)
+  if err != nil {
+    fmt.Println("PEM READING ERROR")
+    return "", err
+  }
+
+  key, err := jwt.ParseRSAPrivateKeyFromPEM(pem)
+  if err != nil {
+    fmt.Println("KEY PARSING ERROR")
+    return "", err
+  }
+
+  // SIGN TOKEN USING KEY
+
+  jwt, err := token.SignedString(key)
+  if err != nil {
+    fmt.Println("KEY SIGNING ERROR")
+    return "", err
+  }
+
+  return jwt, err
 }
