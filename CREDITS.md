@@ -3,7 +3,10 @@
 ## Go Language
 
   + [How to Write Go Code](https://golang.org/doc/code.html)
-  + [Net/HTTP Requests](https://golang.org/pkg/net/http/#Request)
+  + [Net/HTTP](https://golang.org/pkg/net/http/)
+  + [Net/URL](https://golang.org/pkg/net/url/)
+  + [JSON](https://blog.golang.org/json-and-go)
+  + [Parsing JSON Responses](http://blog.josephmisiti.com/parsing-json-responses-in-golang)
 
 ### Datatypes
 
@@ -27,9 +30,10 @@
   + [Goth](https://github.com/markbates/goth)
   + [Goth Provider](https://github.com/markbates/goth/blob/master/provider.go)
   + [Goth OIDC Provider](https://github.com/markbates/goth/blob/master/providers/openidConnect/openidConnect.go)
-  + [Goth Gothic](https://github.com/markbates/goth/blob/master/gothic/gothic.go)
+  + [Goth OIDC Session](https://github.com/markbates/goth/blob/master/providers/openidConnect/session.go)
+  + [Gothic](https://github.com/markbates/goth/blob/master/gothic/gothic.go)
   + [Gothic Docs](https://godoc.org/github.com/markbates/goth/gothic#GetProviderName)
-  + [Goth Example](https://github.com/markbates/goth/blob/master/examples/main.go)
+  + [Gothic Example](https://github.com/markbates/goth/blob/master/examples/main.go)
   + [Gothic and Gin Example](https://github.com/oov/gothic/blob/master/examples/gin.go)
   + [MyMove](https://github.com/transcom/mymove/) -- uses Gothic, amazing reference
 

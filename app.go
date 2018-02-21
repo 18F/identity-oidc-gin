@@ -2,7 +2,9 @@ package main
 
 import (
   "encoding/base64"
+  "encoding/json"
   "fmt"
+  "io/ioutil"
   "math/rand"
   "net/http"
   "net/url"
@@ -59,25 +61,6 @@ func redirectProfile(c *gin.Context)  {
   c.Redirect(http.StatusTemporaryRedirect, "/profile")
 }
 
-func loginGovAuth(c *gin.Context)  {
-  fmt.Println("AUTH")
-  // gothic.BeginAuthHandler(c.Writer, c.Request) // ran into server errors re: acr values and nonce, bypass by using custom auth URL below...
-  authURL, err := parameterizedAuthURL()
-  if err != nil { return }
-  c.Redirect(http.StatusTemporaryRedirect, authURL)
-}
-
-func loginGovCallback(c *gin.Context)  {
-  fmt.Println("CALLBACK")
-  //fmt.Println("PARAMS:", c.Params)
-  //fmt.Println("REQUEST METHOD:", c.Request.Method)
-  fmt.Println("CALLBACK URL:", c.Request.URL)
-  fmt.Println("CALLBACK HEADERS:", c.Request.Header)
-  fmt.Println("CALLBACK BODY:", c.Request.Body)
-  fmt.Println("ERRORS:", c.Errors)
-  c.Next() //c.Redirect(http.StatusTemporaryRedirect, "/profile")
-}
-
 //
 // AUTH
 //
@@ -102,33 +85,93 @@ func useProvider()  {
   }
 }
 
+func loginGovAuth(c *gin.Context)  {
+  fmt.Println("AUTH")
+  // gothic.BeginAuthHandler(c.Writer, c.Request) // ran into server errors re: acr values and nonce, bypass by using custom auth URL below...
+  authURL, err := parameterizedAuthURL()
+  if err != nil { return }
+  c.Redirect(http.StatusTemporaryRedirect, authURL)
+}
+
 // adds login.gov-specific params to the the identity provider's auth URL
 // adapted from source: https://github.com/transcom/mymove/blob/defe4a5d91c3ed756ee243beea2050368015870f/pkg/auth/auth.go#L59
 func parameterizedAuthURL() (string, error)  {
   provider, err := goth.GetProvider(providerName)
   if err != nil { return "", err }
-  fmt.Println("GOT PROVIDER:", provider)
-
+  //fmt.Println("GOT PROVIDER:", provider)
   state := generateNonce()
   session, err := provider.BeginAuth(state)
   if err != nil { return "", err }
-  fmt.Println("STATE:", state)
+  //fmt.Println("STATE:", state)
 
   baseURL, err := session.GetAuthURL()
   if err != nil { return "", err}
   authURL, err := url.Parse(baseURL)
   if err != nil { return "", err}
-  fmt.Println("AUTH URL:", authURL)
-
   params := authURL.Query()
   params.Add("acr_values", "http://idmanagement.gov/ns/assurance/loa/1") //todo: variable LOA 1 or 3
   params.Add("nonce", state)
   params.Set("scope", "openid email address phone profile:birthdate profile:name profile social_security_number")
-  fmt.Println("AUTH URL PARAMS:", authURL)
   authURL.RawQuery = params.Encode()
-  fmt.Println("AUTH URL:", authURL.String())
-
   return authURL.String(), err
+}
+
+func loginGovCallback(c *gin.Context)  {
+  fmt.Println("CALLBACK")
+
+  // COMPILE REQUEST PARAMS
+
+  q:= c.Request.URL.Query() // get code and state from URL params
+  code := q["code"][0]
+  //state := q["state"][0]
+  //fmt.Println("CODE", code)
+  //fmt.Println("STATE", state)
+
+  tokenParams := url.Values{}
+  tokenParams.Set("client_assertion", "my JWT")
+  tokenParams.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+  tokenParams.Set("code", code)
+  tokenParams.Set("grant_type", "authorization_code")
+  fmt.Println(tokenParams)
+
+  // ISSUE REQUEST
+
+  tokenURL := "http://localhost:3000/api/openid_connect/token" // TODO: get from provider.openidConfig
+  resp, err := http.PostForm(tokenURL, tokenParams)
+  if err != nil {return}
+  fmt.Println("TOKEN RESPONSE IS A:", reflect.TypeOf(resp))
+
+  // PARSE RESPONSE
+
+  //defer resp.Body.Close()
+  //body, err := ioutil.ReadAll(resp.Body)
+  //if err != nil {return}
+  //fmt.Println("TOKEN RESPONSE BODY IS A:", reflect.TypeOf(body), reflect.TypeOf(body).Kind()  )
+//
+  //// see: https://developers.login.gov/oidc/#token-response
+  //type TokenResponse struct {
+  //  AccessToken string `json:"access_token"`
+  //  TokenType string `json:"token_type"`
+  //  ExpiresIn int `json:"expires_in"`
+  //  IDToken string `json:"id_token"`
+  //}
+//
+  //var tr TokenResponse
+	//parseErr := json.Unmarshal(body, &tr)
+  //if parseErr != nil {
+  //  fmt.Println("JSON PARSING ERROR")
+  //  return
+  //}
+  //fmt.Println("TOKEN RESPONSE PARSED:", reflect.TypeOf(tr), tr)
+  //fmt.Println("... ACCESS TOKEN:", tr.AccessToken)
+  //fmt.Println("... TOKEN TYPE:", tr.TokenType)
+  //fmt.Println("... ID TOKEN:", tr.IDToken)
+//
+  //js, err := json.Marshal(tr)
+  //fmt.Println("JSON:", js)
+
+  //TODO: store token and state in session for use during rp-initiated logout
+  //c.Next()
 }
 
 // generates a random string
