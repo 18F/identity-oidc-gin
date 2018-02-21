@@ -130,7 +130,7 @@ func loginGovCallback(c *gin.Context)  {
 
   tokenURL := "http://localhost:3000/api/openid_connect/token" // TODO: get from provider.openidConfig
 
-  // COMPILE REQUEST PARAMS
+  // COMPILE TOKEN REQUEST PARAMS
 
   q:= c.Request.URL.Query()
   code := q["code"][0]
@@ -145,13 +145,13 @@ func loginGovCallback(c *gin.Context)  {
   tokenParams.Set("code", code)
   tokenParams.Set("grant_type", "authorization_code")
 
-  // ISSUE REQUEST
+  // ISSUE TOKEN REQUEST
 
   resp, err := http.PostForm(tokenURL, tokenParams)
   if err != nil { fmt.Println("POST REQUEST ERROR") }
   fmt.Println("TOKEN RESPONSE:", reflect.TypeOf(resp), resp.Status)
 
-  // PARSE RESPONSE
+  // PARSE TOKEN RESPONSE
 
   defer resp.Body.Close()
   body, err := ioutil.ReadAll(resp.Body)
@@ -162,11 +162,30 @@ func loginGovCallback(c *gin.Context)  {
   parseErr := json.Unmarshal(body, &tr)
   if parseErr != nil { fmt.Println("JSON UNMARSHAL ERROR") }
 
-  js, err := json.Marshal(tr)
-  if err != nil { fmt.Println("JSON MARSHAL ERROR") }
-  fmt.Println("TOKEN RESPONSE JSON:", string(js))
+  //js, err := json.Marshal(tr)
+  //if err != nil { fmt.Println("JSON MARSHAL ERROR") }
+  //fmt.Println("TOKEN RESPONSE JSON:", string(js))
 
-  //TODO: store token and state in session for use during rp-initiated logout
+  //TODO: store token and state in session
+
+  // ISSUE USER INFO REQUEST
+
+  // TODO: use existing goth session instead
+  session := openidConnect.Session{
+    AccessToken: tr.AccessToken,
+    ExpiresAt: time.Now().Add(time.Second * time.Duration(tr.ExpiresIn)),
+    IDToken: tr.IDToken,
+  }
+
+  provider, err := goth.GetProvider(providerName)
+  if err != nil { fmt.Println("GET PROVIDER ERROR") }
+
+  user, err := provider.FetchUser(&session)
+  if err != nil { fmt.Println("FETCH USER ERROR") }
+  fmt.Println("GOTH USER", user, user.RawData)
+
+  c.Redirect(http.StatusTemporaryRedirect, "/profile")
+
   //c.Next()
 }
 
