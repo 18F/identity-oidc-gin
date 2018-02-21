@@ -3,6 +3,7 @@
 ## Go Language
 
   + [How to Write Go Code](https://golang.org/doc/code.html)
+  + [Net/HTTP Requests](https://golang.org/pkg/net/http/#Request)
 
 ### Datatypes
 
@@ -30,6 +31,7 @@
   + [Gothic Docs](https://godoc.org/github.com/markbates/goth/gothic#GetProviderName)
   + [Goth Example](https://github.com/markbates/goth/blob/master/examples/main.go)
   + [Gothic and Gin Example](https://github.com/oov/gothic/blob/master/examples/gin.go)
+  + [MyMove](https://github.com/transcom/mymove/) -- uses Gothic, amazing reference
 
 ## Assets
 
