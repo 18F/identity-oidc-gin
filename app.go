@@ -23,6 +23,21 @@ type User struct {
   GivenName string
 }
 
+//type LoginGovUser struct {
+//  Sub string `json:"sub"`
+//  Iss string `json:"iss"`
+//  Acr string `json:"acr"`
+//  Aud string `json:"aud"`
+//  Email string `json:"email"`
+//  EmailVerified string `json:"email_verified"`
+//  GivenName string `json:"given_name"`
+//  FamilyName string `json:"family_name"`
+//  SSN string `json:"ssn"`
+//  Address string `json:"address"`
+//  Phone string `json:"phone"`
+//  PhoneVerified string `json:"phone_verified"`
+//}
+
 func main() {
   useProvider()
   router := gin.Default()
@@ -44,7 +59,7 @@ func renderIndex(c *gin.Context) {
 
 func renderProfile(c *gin.Context) {
   var blocks [5]int
-  user := User{Email: "test.user@gmail.com", GivenName: "Test", FamilyName:"User"}
+  user := User{Email: "test.user@gmail.com", GivenName: "Test", FamilyName:"User"} // TODO: get user info from session/cookie
 
   fmt.Println("ROUTING TO PROFILE")
   c.HTML(http.StatusOK, "profile.tmpl", gin.H{
@@ -86,28 +101,36 @@ func useProvider()  {
   }
 }
 
+// gothic.BeginAuthHandler(c.Writer, c.Request)
+// ... ran into server errors about missing acr values, nonce, etc.
+// ... so assemble a custom auth url instead of using BeginAuthHandler
 func loginGovAuth(c *gin.Context)  {
   fmt.Println("AUTH")
-  // gothic.BeginAuthHandler(c.Writer, c.Request) // ran into server errors re: acr values and nonce, bypass by using custom auth URL below...
-  authURL, err := parameterizedAuthURL()
-  if err != nil { return }
+
+  provider, err := goth.GetProvider(providerName)
+  if err != nil { fmt.Println("PROVIDER LOOKUP ERROR") }
+  fmt.Println("PROVIDER:", reflect.TypeOf(provider), provider)
+
+  state := generateNonce()
+  fmt.Println("STATE:", reflect.TypeOf(state), state)
+
+  sesh, err := provider.BeginAuth(state)
+  if err != nil { fmt.Println("BEGIN AUTH ERROR") }
+  fmt.Println("SESSION:", reflect.TypeOf(sesh), sesh)
+
+  authURL, err := loginGovAuthURL(sesh, state)
+  if err != nil { fmt.Println("AUTH URL COMPLIATION ERROR") }
+  fmt.Println("AUTH URL:", reflect.TypeOf(authURL), authURL)
+
   c.Redirect(http.StatusTemporaryRedirect, authURL)
 }
 
 // adds login.gov-specific params to the the identity provider's auth URL
 // adapted from source: https://github.com/transcom/mymove/blob/defe4a5d91c3ed756ee243beea2050368015870f/pkg/auth/auth.go#L59
-func parameterizedAuthURL() (string, error)  {
-  provider, err := goth.GetProvider(providerName)
-  if err != nil { return "", err }
-  //fmt.Println("GOT PROVIDER:", provider)
-  state := generateNonce()
-  session, err := provider.BeginAuth(state)
-  if err != nil { return "", err }
-  //fmt.Println("STATE:", state)
-
-  baseURL, err := session.GetAuthURL()
+func loginGovAuthURL(session goth.Session, state string) (string, error)  {
+  urlStr, err := session.GetAuthURL()
   if err != nil { return "", err}
-  authURL, err := url.Parse(baseURL)
+  authURL, err := url.Parse(urlStr)
   if err != nil { return "", err}
   params := authURL.Query()
   params.Add("acr_values", "http://idmanagement.gov/ns/assurance/loa/1") //todo: variable LOA 1 or 3
@@ -182,11 +205,20 @@ func loginGovCallback(c *gin.Context)  {
 
   user, err := provider.FetchUser(&session)
   if err != nil { fmt.Println("FETCH USER ERROR") }
-  fmt.Println("GOTH USER", user, user.RawData)
+  fmt.Println("GOTH USER", reflect.TypeOf(user))
+  //fmt.Println("GOTH USER INFO", reflect.TypeOf(user.RawData), user.RawData)
+  //fmt.Println(gothUser.Provider)
+  //fmt.Println(gothUser.Email)
+  //fmt.Println(gothUser.AccessToken)
+  //fmt.Println(gothUser.ExpiresAt)
+
+  js, err := json.Marshal(user.RawData)
+  if err != nil { fmt.Println("JSON MARSHAL ERROR") }
+  fmt.Println("USER INFO:", string(js))
+
+  // TODO: add user info to session/cookie
 
   c.Redirect(http.StatusTemporaryRedirect, "/profile")
-
-  //c.Next()
 }
 
 // generates a random string
