@@ -15,6 +15,7 @@ import (
   "github.com/markbates/goth/gothic"
   "github.com/markbates/goth/providers/openidConnect"
   "github.com/dgrijalva/jwt-go"
+  //"github.com/gorilla/sessions"
 )
 
 type User struct {
@@ -45,19 +46,29 @@ func main() {
   router.Static("/assets", "./assets") // load static assets
   router.GET("/", renderIndex)
   router.GET("/profile", renderProfile)
-  router.GET("/auth/login-gov/login/loa-1", loginGovAuth)
-  router.GET("/auth/login-gov/login/loa-3", loginGovAuth)
-  router.GET("/auth/login-gov/callback", loginGovCallback)
-  router.GET("/auth/login-gov/logout", redirectIndex)
-  router.GET("/auth/login-gov/logout/rp", redirectIndex)
+  router.GET("/auth/login-gov/login/loa-1", login) // todo: login(1)
+  router.GET("/auth/login-gov/login/loa-3", login) //todo: login(3)
+  router.GET("/auth/login-gov/callback", callback)
+  router.GET("/auth/login-gov/logout", logout)
+  router.GET("/auth/login-gov/logout/rp", logout) // toko: rpLogout
   router.Run() // listen and serve on 0.0.0.0:8080
 }
 
 func renderIndex(c *gin.Context) {
+  fmt.Println("------------")
+  fmt.Println("INDEX")
+  fmt.Println("------------")
+  logSession(c.Request)
+
   c.HTML(http.StatusOK, "index.tmpl", gin.H{"title": "Login.gov OIDC Client (Gin)",})
 }
 
 func renderProfile(c *gin.Context) {
+  fmt.Println("------------")
+  fmt.Println("PROFILE")
+  fmt.Println("------------")
+  logSession(c.Request)
+
   var blocks [5]int
   user := User{Email: "test.user@gmail.com", GivenName: "Test", FamilyName:"User"} // TODO: get user info from session/cookie
 
@@ -76,6 +87,7 @@ func redirectIndex(c *gin.Context){
 func redirectProfile(c *gin.Context)  {
   c.Redirect(http.StatusTemporaryRedirect, "/profile")
 }
+
 
 //
 // AUTH
@@ -104,8 +116,11 @@ func useProvider()  {
 // gothic.BeginAuthHandler(c.Writer, c.Request)
 // ... ran into server errors about missing acr values, nonce, etc.
 // ... so assemble a custom auth url instead of using BeginAuthHandler
-func loginGovAuth(c *gin.Context)  {
+func login(c *gin.Context)  {
+  fmt.Println("------------")
   fmt.Println("AUTH")
+  fmt.Println("------------")
+  logSession(c.Request)
 
   provider, err := goth.GetProvider(providerName)
   if err != nil { fmt.Println("PROVIDER LOOKUP ERROR") }
@@ -148,8 +163,11 @@ type TokenResponse struct {
   IDToken string `json:"id_token"`
 }
 
-func loginGovCallback(c *gin.Context)  {
+func callback(c *gin.Context)  {
+  fmt.Println("------------")
   fmt.Println("CALLBACK")
+  fmt.Println("------------")
+  logSession(c.Request)
 
   tokenURL := "http://localhost:3000/api/openid_connect/token" // TODO: get from provider.openidConfig
 
@@ -192,6 +210,7 @@ func loginGovCallback(c *gin.Context)  {
   //TODO: store token and state in session
 
   // ISSUE USER INFO REQUEST
+  // ... consider using CompleteUserAuth (https://github.com/markbates/goth/blob/master/gothic/gothic.go#L153)
 
   // TODO: use existing goth session instead
   session := openidConnect.Session{
@@ -203,7 +222,7 @@ func loginGovCallback(c *gin.Context)  {
   provider, err := goth.GetProvider(providerName)
   if err != nil { fmt.Println("GET PROVIDER ERROR") }
 
-  user, err := provider.FetchUser(&session)
+  user, err := provider.FetchUser(&session) // consider using provider.CompleteUserAuth
   if err != nil { fmt.Println("FETCH USER ERROR") }
   fmt.Println("GOTH USER", reflect.TypeOf(user))
   //fmt.Println("GOTH USER INFO", reflect.TypeOf(user.RawData), user.RawData)
@@ -219,6 +238,25 @@ func loginGovCallback(c *gin.Context)  {
   // TODO: add user info to session/cookie
 
   c.Redirect(http.StatusTemporaryRedirect, "/profile")
+}
+
+func logout(c *gin.Context) {
+  fmt.Println("------------")
+  fmt.Println("LOGOUT")
+  fmt.Println("------------")
+  err := gothic.Logout(c.Writer, c.Request)
+  if err != nil { fmt.Println("LOGOUT ERROR") }
+  redirectIndex(c)
+}
+
+func logSession(req *http.Request) {
+  store := gothic.Store
+  //fmt.Println("SESSION STORE", reflect.TypeOf(store), store)
+  session, _ := store.Get(req, "_gothic_session")
+  fmt.Println("SESSION", reflect.TypeOf(session), session)
+  fmt.Println("SESSION ID", session.ID)
+  fmt.Println("SESSION VALUES", session.Values)
+  fmt.Println("SESSION OPTIONS", session.Options)
 }
 
 // generates a random string

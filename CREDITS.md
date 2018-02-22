@@ -36,6 +36,7 @@
   + [Gothic Example](https://github.com/markbates/goth/blob/master/examples/main.go)
   + [Gothic and Gin Example](https://github.com/oov/gothic/blob/master/examples/gin.go)
   + [MyMove](https://github.com/transcom/mymove/) -- uses Gothic, amazing reference
+  + [Gorilla Sessions](https://github.com/gorilla/sessions)
 
 ## JSON Web Tokens
 
