@@ -24,6 +24,7 @@
 
   + [Gin Source Code](https://github.com/gin-gonic/gin)
   + [Iteration in Templates](https://github.com/gin-gonic/gin/issues/600#issuecomment-214023292)
+  + [Gin Contexts](https://github.com/gin-gonic/gin/blob/master/context.go#L190)
 
 ## Goth and Gothic
 

@@ -8,6 +8,7 @@ import (
   "math/rand"
   "net/http"
   "net/url"
+  "os"
   "reflect"
   "time"
   "github.com/gin-gonic/gin"
@@ -15,8 +16,135 @@ import (
   "github.com/markbates/goth/gothic"
   "github.com/markbates/goth/providers/openidConnect"
   "github.com/dgrijalva/jwt-go"
+  "github.com/joho/godotenv"
   //"github.com/gorilla/sessions"
 )
+
+func main() {
+  err := godotenv.Load()
+  if err != nil {fmt.Println("Error loading .env file")}
+  fmt.Println("SESSION SECRET", os.Getenv("SESSION_SECRET"))
+
+  useProvider()
+  router := gin.Default()
+  router.LoadHTMLGlob("views/*") // load views
+  router.Static("/assets", "./assets") // load static assets
+  router.GET("/", renderIndex)
+  router.GET("/profile", renderProfile)
+  router.GET("/auth/login-gov/login/loa-1", login) // todo: login(1)
+  router.GET("/auth/login-gov/login/loa-3", login) //todo: login(3)
+  router.GET("/auth/login-gov/callback", callback)
+  router.GET("/auth/login-gov/logout", logout)
+  router.GET("/auth/login-gov/logout/rp", logout) // toko: rpLogout
+  router.Run() // listen and serve on 0.0.0.0:8080
+}
+
+func renderIndex(c *gin.Context) {
+  fmt.Println("------------")
+  fmt.Println("INDEX")
+  fmt.Println("------------")
+  //logSession(c)
+
+  c.HTML(http.StatusOK, "index.tmpl", gin.H{"title": "Login.gov OIDC Client (Gin)",})
+}
+
+func renderProfile(c *gin.Context) {
+  fmt.Println("------------")
+  fmt.Println("PROFILE")
+  fmt.Println("------------")
+  //logSession(c)
+
+  var blocks [5]int
+  user := User{Email: "test.user@gmail.com", GivenName: "Test", FamilyName:"User"} // TODO: get user info from session/cookie
+
+  c.HTML(http.StatusOK, "profile.tmpl", gin.H{
+    "title": "Profile Page",
+    "blocks": blocks,
+    "user": user,
+  })
+}
+
+func redirectIndex(c *gin.Context){
+  c.Redirect(http.StatusTemporaryRedirect, "/")
+}
+
+func redirectProfile(c *gin.Context)  {
+  c.Redirect(http.StatusTemporaryRedirect, "/profile")
+}
+
+// LOGIN
+// ... Logingothic.BeginAuthHandler(c.Writer, c.Request)
+// ... ran into server errors about missing acr values, nonce, etc.
+// ... so assemble a custom auth url instead
+// ... and redirect user there
+func login(c *gin.Context)  {
+  fmt.Println("------------")
+  fmt.Println("AUTH")
+  fmt.Println("------------")
+  //logSession(c)
+
+  provider, err := goth.GetProvider(providerName)
+  if err != nil { fmt.Println("PROVIDER LOOKUP ERROR") }
+  //fmt.Println("PROVIDER:", reflect.TypeOf(provider), provider)
+
+  state := generateNonce()
+  //fmt.Println("STATE:", reflect.TypeOf(state), state)
+
+  sesh, err := provider.BeginAuth(state)
+  if err != nil { fmt.Println("BEGIN AUTH ERROR") }
+  fmt.Println("SESSION:", reflect.TypeOf(sesh), sesh)
+
+  authURL, err := loginGovAuthURL(sesh, state)
+  if err != nil { fmt.Println("AUTH URL COMPLIATION ERROR") }
+  //fmt.Println("AUTH URL:", reflect.TypeOf(authURL), authURL)
+
+  c.Redirect(http.StatusTemporaryRedirect, authURL)
+}
+
+// CALLBACK
+func callback(c *gin.Context)  {
+  fmt.Println("------------")
+  fmt.Println("CALLBACK")
+  fmt.Println("------------")
+  //logSession(c)
+
+  tokenResponse := fetchToken(c)
+  fetchUserInfo(tokenResponse)
+  c.Redirect(http.StatusTemporaryRedirect, "/profile")
+}
+
+// LOGOUT
+func logout(c *gin.Context) {
+  fmt.Println("------------")
+  fmt.Println("LOGOUT")
+  fmt.Println("------------")
+  err := gothic.Logout(c.Writer, c.Request)
+  if err != nil { fmt.Println("LOGOUT ERROR", err) }
+  c.Redirect(http.StatusTemporaryRedirect, "/")
+}
+
+//func logSession(req *http.Request) {
+//  store := gothic.Store
+//  fmt.Println("SESSION STORE", reflect.TypeOf(store), store)
+//  session, _ := store.Get(req, "_gothic_session")
+//  fmt.Println("SESSION", reflect.TypeOf(session), session)
+//  fmt.Println("SESSION ID", session.ID)
+//  fmt.Println("SESSION VALUES", session.Values)
+//  fmt.Println("SESSION OPTIONS", session.Options)
+//}
+
+//func logSession(c *gin.Context)  {
+//  //fmt.Println("CONTEXT PARAMS", c.Params)
+//  fmt.Println("CONTEXT KEYS", c.Keys)
+//  _, gu := c.Get("my_goth_user")
+//  _, u := c.Get("my_logingov_user")
+//  fmt.Println(gu)
+//  fmt.Println(u)
+//}
+
+//
+// AUTH
+//
 
 type User struct {
   Email string
@@ -39,59 +167,13 @@ type User struct {
 //  PhoneVerified string `json:"phone_verified"`
 //}
 
-func main() {
-  useProvider()
-  router := gin.Default()
-  router.LoadHTMLGlob("views/*") // load views
-  router.Static("/assets", "./assets") // load static assets
-  router.GET("/", renderIndex)
-  router.GET("/profile", renderProfile)
-  router.GET("/auth/login-gov/login/loa-1", login) // todo: login(1)
-  router.GET("/auth/login-gov/login/loa-3", login) //todo: login(3)
-  router.GET("/auth/login-gov/callback", callback)
-  router.GET("/auth/login-gov/logout", logout)
-  router.GET("/auth/login-gov/logout/rp", logout) // toko: rpLogout
-  router.Run() // listen and serve on 0.0.0.0:8080
+// see: https://developers.login.gov/oidc/#token-response
+type TokenResponse struct {
+  AccessToken string `json:"access_token"`
+  TokenType string `json:"token_type"`
+  ExpiresIn int `json:"expires_in"`
+  IDToken string `json:"id_token"`
 }
-
-func renderIndex(c *gin.Context) {
-  fmt.Println("------------")
-  fmt.Println("INDEX")
-  fmt.Println("------------")
-  logSession(c.Request)
-
-  c.HTML(http.StatusOK, "index.tmpl", gin.H{"title": "Login.gov OIDC Client (Gin)",})
-}
-
-func renderProfile(c *gin.Context) {
-  fmt.Println("------------")
-  fmt.Println("PROFILE")
-  fmt.Println("------------")
-  logSession(c.Request)
-
-  var blocks [5]int
-  user := User{Email: "test.user@gmail.com", GivenName: "Test", FamilyName:"User"} // TODO: get user info from session/cookie
-
-  fmt.Println("ROUTING TO PROFILE")
-  c.HTML(http.StatusOK, "profile.tmpl", gin.H{
-    "title": "Profile Page",
-    "blocks": blocks,
-    "user": user,
-  })
-}
-
-func redirectIndex(c *gin.Context){
-  c.Redirect(http.StatusTemporaryRedirect, "/")
-}
-
-func redirectProfile(c *gin.Context)  {
-  c.Redirect(http.StatusTemporaryRedirect, "/profile")
-}
-
-
-//
-// AUTH
-//
 
 const providerName = "openid-connect"
 const clientId = "urn:gov:gsa:openidconnect:sp:gin" // os.Getenv("OPENID_CONNECT_KEY")
@@ -113,33 +195,6 @@ func useProvider()  {
   }
 }
 
-// gothic.BeginAuthHandler(c.Writer, c.Request)
-// ... ran into server errors about missing acr values, nonce, etc.
-// ... so assemble a custom auth url instead of using BeginAuthHandler
-func login(c *gin.Context)  {
-  fmt.Println("------------")
-  fmt.Println("AUTH")
-  fmt.Println("------------")
-  logSession(c.Request)
-
-  provider, err := goth.GetProvider(providerName)
-  if err != nil { fmt.Println("PROVIDER LOOKUP ERROR") }
-  fmt.Println("PROVIDER:", reflect.TypeOf(provider), provider)
-
-  state := generateNonce()
-  fmt.Println("STATE:", reflect.TypeOf(state), state)
-
-  sesh, err := provider.BeginAuth(state)
-  if err != nil { fmt.Println("BEGIN AUTH ERROR") }
-  fmt.Println("SESSION:", reflect.TypeOf(sesh), sesh)
-
-  authURL, err := loginGovAuthURL(sesh, state)
-  if err != nil { fmt.Println("AUTH URL COMPLIATION ERROR") }
-  fmt.Println("AUTH URL:", reflect.TypeOf(authURL), authURL)
-
-  c.Redirect(http.StatusTemporaryRedirect, authURL)
-}
-
 // adds login.gov-specific params to the the identity provider's auth URL
 // adapted from source: https://github.com/transcom/mymove/blob/defe4a5d91c3ed756ee243beea2050368015870f/pkg/auth/auth.go#L59
 func loginGovAuthURL(session goth.Session, state string) (string, error)  {
@@ -155,20 +210,9 @@ func loginGovAuthURL(session goth.Session, state string) (string, error)  {
   return authURL.String(), err
 }
 
-// see: https://developers.login.gov/oidc/#token-response
-type TokenResponse struct {
-  AccessToken string `json:"access_token"`
-  TokenType string `json:"token_type"`
-  ExpiresIn int `json:"expires_in"`
-  IDToken string `json:"id_token"`
-}
-
-func callback(c *gin.Context)  {
-  fmt.Println("------------")
-  fmt.Println("CALLBACK")
-  fmt.Println("------------")
-  logSession(c.Request)
-
+// FETCH TOKEN
+// ... because gothic.CompleteUserAuth is not working
+func fetchToken(c *gin.Context) TokenResponse {
   tokenURL := "http://localhost:3000/api/openid_connect/token" // TODO: get from provider.openidConfig
 
   // COMPILE TOKEN REQUEST PARAMS
@@ -196,70 +240,59 @@ func callback(c *gin.Context)  {
 
   defer resp.Body.Close()
   body, err := ioutil.ReadAll(resp.Body)
-  if err != nil {fmt.Println("READ BYTES ERR") }
+  if err != nil {fmt.Println("READ BYTES ERR", err) }
   //fmt.Println("TOKEN RESPONSE BODY:", reflect.TypeOf(body), reflect.TypeOf(body).Kind()  )
 
   var tr TokenResponse
   parseErr := json.Unmarshal(body, &tr)
-  if parseErr != nil { fmt.Println("JSON UNMARSHAL ERROR") }
+  if parseErr != nil { fmt.Println("JSON UNMARSHAL ERROR", parseErr) }
 
-  //js, err := json.Marshal(tr)
-  //if err != nil { fmt.Println("JSON MARSHAL ERROR") }
-  //fmt.Println("TOKEN RESPONSE JSON:", string(js))
+  js, err := json.Marshal(tr)
+  if err != nil { fmt.Println("JSON MARSHAL ERROR", err) }
+  fmt.Println("TOKEN RESPONSE JSON:", string(js))
 
   //TODO: store token and state in session
 
-  // ISSUE USER INFO REQUEST
-  // ... consider using CompleteUserAuth (https://github.com/markbates/goth/blob/master/gothic/gothic.go#L153)
+  return tr
+}
 
-  // TODO: use existing goth session instead
+// ISSUE USER INFO REQUEST
+// ... because gothic.CompleteUserAuth is not working
+func fetchUserInfo(tr TokenResponse) (goth.User) {
   session := openidConnect.Session{
     AccessToken: tr.AccessToken,
     ExpiresAt: time.Now().Add(time.Second * time.Duration(tr.ExpiresIn)),
     IDToken: tr.IDToken,
-  }
+  } // TODO: use existing goth session instead
 
   provider, err := goth.GetProvider(providerName)
-  if err != nil { fmt.Println("GET PROVIDER ERROR") }
+  if err != nil { fmt.Println("GET PROVIDER ERROR", err) }
 
-  user, err := provider.FetchUser(&session) // consider using provider.CompleteUserAuth
-  if err != nil { fmt.Println("FETCH USER ERROR") }
-  fmt.Println("GOTH USER", reflect.TypeOf(user))
+  user, err := provider.FetchUser(&session)
+  if err != nil { fmt.Println("FETCH USER ERROR", err) }
+
+  fmt.Println("USER", reflect.TypeOf(user))
   //fmt.Println("GOTH USER INFO", reflect.TypeOf(user.RawData), user.RawData)
   //fmt.Println(gothUser.Provider)
   //fmt.Println(gothUser.Email)
   //fmt.Println(gothUser.AccessToken)
   //fmt.Println(gothUser.ExpiresAt)
-
   js, err := json.Marshal(user.RawData)
   if err != nil { fmt.Println("JSON MARSHAL ERROR") }
   fmt.Println("USER INFO:", string(js))
 
   // TODO: add user info to session/cookie
 
-  c.Redirect(http.StatusTemporaryRedirect, "/profile")
-}
+  //gothic.storeInSession("my_goth_user", user, c.Request, c.Writer)
+  //gothic.storeInSession("raw_user", js, c.Request, c.Writer)
+  //c.Set("my_goth_user", "abc123")
+  //c.Set("my_logingov_user", string(js))
 
-func logout(c *gin.Context) {
-  fmt.Println("------------")
-  fmt.Println("LOGOUT")
-  fmt.Println("------------")
-  err := gothic.Logout(c.Writer, c.Request)
-  if err != nil { fmt.Println("LOGOUT ERROR") }
-  redirectIndex(c)
-}
-
-func logSession(req *http.Request) {
-  store := gothic.Store
-  //fmt.Println("SESSION STORE", reflect.TypeOf(store), store)
-  session, _ := store.Get(req, "_gothic_session")
-  fmt.Println("SESSION", reflect.TypeOf(session), session)
-  fmt.Println("SESSION ID", session.ID)
-  fmt.Println("SESSION VALUES", session.Values)
-  fmt.Println("SESSION OPTIONS", session.Options)
+  return user
 }
 
 // generates a random string
+// adapted from source: https://github.com/markbates/goth/blob/master/gothic/gothic.go#L82-L91
 // adapted from source: https://github.com/transcom/mymove/blob/defe4a5d91c3ed756ee243beea2050368015870f/pkg/auth/auth.go#L89
 func generateNonce() string {
   nonceBytes := make([]byte, 64)
