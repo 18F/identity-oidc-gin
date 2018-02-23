@@ -13,7 +13,7 @@ import (
   "time"
   "github.com/gin-gonic/gin"
   "github.com/markbates/goth"
-  "github.com/markbates/goth/gothic"
+  "github.com/s2t2/goth/gothic" // exports session access methods
   "github.com/markbates/goth/providers/openidConnect"
   "github.com/dgrijalva/jwt-go"
   "github.com/joho/godotenv"
@@ -43,7 +43,7 @@ func renderIndex(c *gin.Context) {
   fmt.Println("------------")
   fmt.Println("INDEX")
   fmt.Println("------------")
-  //logSession(c)
+  logSession(c)
 
   c.HTML(http.StatusOK, "index.tmpl", gin.H{"title": "Login.gov OIDC Client (Gin)",})
 }
@@ -52,7 +52,7 @@ func renderProfile(c *gin.Context) {
   fmt.Println("------------")
   fmt.Println("PROFILE")
   fmt.Println("------------")
-  //logSession(c)
+  logSession(c)
 
   var blocks [5]int
   user := User{Email: "test.user@gmail.com", GivenName: "Test", FamilyName:"User"} // TODO: get user info from session/cookie
@@ -81,7 +81,7 @@ func login(c *gin.Context)  {
   fmt.Println("------------")
   fmt.Println("AUTH")
   fmt.Println("------------")
-  //logSession(c)
+  logSession(c)
 
   provider, err := goth.GetProvider(providerName)
   if err != nil { fmt.Println("PROVIDER LOOKUP ERROR") }
@@ -106,10 +106,10 @@ func callback(c *gin.Context)  {
   fmt.Println("------------")
   fmt.Println("CALLBACK")
   fmt.Println("------------")
-  //logSession(c)
+  logSession(c)
 
   tokenResponse := fetchToken(c)
-  fetchUserInfo(tokenResponse)
+  fetchUserInfo(c, tokenResponse)
   c.Redirect(http.StatusTemporaryRedirect, "/profile")
 }
 
@@ -124,23 +124,47 @@ func logout(c *gin.Context) {
 }
 
 //func logSession(req *http.Request) {
-//  store := gothic.Store
-//  fmt.Println("SESSION STORE", reflect.TypeOf(store), store)
-//  session, _ := store.Get(req, "_gothic_session")
-//  fmt.Println("SESSION", reflect.TypeOf(session), session)
-//  fmt.Println("SESSION ID", session.ID)
-//  fmt.Println("SESSION VALUES", session.Values)
-//  fmt.Println("SESSION OPTIONS", session.Options)
-//}
+func logSession(c *gin.Context) {
+  store := gothic.Store
+  fmt.Println("SESSION STORE", reflect.TypeOf(store), store)
 
-//func logSession(c *gin.Context)  {
-//  //fmt.Println("CONTEXT PARAMS", c.Params)
-//  fmt.Println("CONTEXT KEYS", c.Keys)
-//  _, gu := c.Get("my_goth_user")
-//  _, u := c.Get("my_logingov_user")
-//  fmt.Println(gu)
-//  fmt.Println(u)
-//}
+  //gothicSession, err := store.Get(c.Request, "_gothic_session")
+  //fmt.Println("GOTHIC SESSION", reflect.TypeOf(gothicSession)) // , gothicSession
+  //fmt.Println("GOTCHI SESSION ID", gothicSession.ID)
+  //fmt.Println("GOTHIC SESSION VALUES", gothicSession.Values)
+  //fmt.Println("GOTHIC SESSION OPTIONS", gothicSession.Options)
+
+  gothicSession, err := gothic.GetFromSession("_gothic_session", c.Request)
+  if err != nil {
+    fmt.Println("GOTHIC SESSION RETRIEVAL ERROR", err)
+  } else {
+    fmt.Println("GOTHIC SESSION", reflect.TypeOf(gothicSession), gothicSession)
+  }
+
+  oidcSession, err := gothic.GetFromSession(providerName, c.Request)
+  if err != nil {
+    fmt.Println("OIDC SESSION RETRIEVAL ERROR", err)
+  } else {
+    fmt.Println("OIDC SESSION", reflect.TypeOf(oidcSession), oidcSession)
+    //fmt.Println("OIDC SESSION ID", oidcSession.ID)
+    //fmt.Println("OIDC SESSION VALUES", oidcSession.Values)
+    //fmt.Println("OIDC SESSION OPTIONS", oidcSession.Options)
+  }
+
+  msg, err := gothic.GetFromSession("message", c.Request)
+  if err != nil {
+    fmt.Println("MESSAGE RETRIEVAL ERROR", err)
+  } else {
+    fmt.Println("MESSAGE", reflect.TypeOf(msg), msg)
+  }
+
+  u, err := gothic.GetFromSession("my_user", c.Request)
+  if err != nil {
+    fmt.Println("USER RETRIEVAL ERROR", err)
+  } else {
+    fmt.Println("USER", reflect.TypeOf(u), u)
+  }
+}
 
 //
 // AUTH
@@ -256,9 +280,14 @@ func fetchToken(c *gin.Context) TokenResponse {
   return tr
 }
 
+
+
+
+
+
 // ISSUE USER INFO REQUEST
 // ... because gothic.CompleteUserAuth is not working
-func fetchUserInfo(tr TokenResponse) (goth.User) {
+func fetchUserInfo(c *gin.Context, tr TokenResponse) (goth.User) {
   session := openidConnect.Session{
     AccessToken: tr.AccessToken,
     ExpiresAt: time.Now().Add(time.Second * time.Duration(tr.ExpiresIn)),
@@ -270,23 +299,23 @@ func fetchUserInfo(tr TokenResponse) (goth.User) {
 
   user, err := provider.FetchUser(&session)
   if err != nil { fmt.Println("FETCH USER ERROR", err) }
-
   fmt.Println("USER", reflect.TypeOf(user))
   //fmt.Println("GOTH USER INFO", reflect.TypeOf(user.RawData), user.RawData)
-  //fmt.Println(gothUser.Provider)
-  //fmt.Println(gothUser.Email)
-  //fmt.Println(gothUser.AccessToken)
-  //fmt.Println(gothUser.ExpiresAt)
   js, err := json.Marshal(user.RawData)
   if err != nil { fmt.Println("JSON MARSHAL ERROR") }
   fmt.Println("USER INFO:", string(js))
 
-  // TODO: add user info to session/cookie
+  // STORE USER IN SESSION
 
-  //gothic.storeInSession("my_goth_user", user, c.Request, c.Writer)
-  //gothic.storeInSession("raw_user", js, c.Request, c.Writer)
-  //c.Set("my_goth_user", "abc123")
-  //c.Set("my_logingov_user", string(js))
+  //gothic.StoreInSession("my_goth_user", user, c.Request, c.Writer)
+  err = gothic.StoreInSession("message", "Hello World", c.Request, c.Writer)
+  if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
+
+  err = gothic.StoreInSession("my_user", string(js), c.Request, c.Writer)
+  if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
+
+  err = gothic.StoreInSession(providerName, session.Marshal(), c.Request, c.Writer)
+  if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
 
   return user
 }
