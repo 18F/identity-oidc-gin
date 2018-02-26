@@ -30,6 +30,7 @@
 
   + [Goth](https://github.com/markbates/goth)
   + [Goth Provider](https://github.com/markbates/goth/blob/master/provider.go)
+  + [Goth Session](https://github.com/markbates/goth/blob/master/session.go)
   + [Goth OIDC Provider](https://github.com/markbates/goth/blob/master/providers/openidConnect/openidConnect.go)
   + [Goth OIDC Session](https://github.com/markbates/goth/blob/master/providers/openidConnect/session.go)
   + [Gothic](https://github.com/markbates/goth/blob/master/gothic/gothic.go)

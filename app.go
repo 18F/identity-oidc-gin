@@ -54,14 +54,17 @@ func renderProfile(c *gin.Context) {
   fmt.Println("------------")
   logSession(c)
 
+  // get user from session
   var blocks [5]int
   user := User{Email: "test.user@gmail.com", GivenName: "Test", FamilyName:"User"} // TODO: get user info from session/cookie
 
-  c.HTML(http.StatusOK, "profile.tmpl", gin.H{
-    "title": "Profile Page",
-    "blocks": blocks,
-    "user": user,
-  })
+
+  //if user != nil {
+    c.HTML(http.StatusOK, "profile.tmpl", gin.H{"title": "Profile Page", "blocks": blocks, "user": user})
+  //} else {
+  //  fmt.Println("COULDN'T FIND AUTHENTICATED USER")
+  //  redirectIndex(c)
+  //}
 }
 
 func redirectIndex(c *gin.Context){
@@ -110,6 +113,27 @@ func callback(c *gin.Context)  {
 
   tokenResponse := fetchToken(c)
   fetchUserInfo(c, tokenResponse)
+
+  //fmt.Println("USER", reflect.TypeOf(user))
+  ////fmt.Println("GOTH USER INFO", reflect.TypeOf(user.RawData), user.RawData)
+  //js, err := json.Marshal(user.RawData)
+  //if err != nil { fmt.Println("JSON MARSHAL ERROR") }
+  //fmt.Println("USER INFO:", string(js))
+
+
+  // STORE USER IN SESSION
+
+  //gothic.StoreInSession("my_goth_user", user, c.Request, c.Writer)
+  //err = gothic.StoreInSession("message", "Hello World", c.Request, c.Writer)
+  //if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
+//
+  //err = gothic.StoreInSession("my_user", string(js), c.Request, c.Writer)
+  //if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
+//
+  //err = gothic.StoreInSession(providerName, session.Marshal(), c.Request, c.Writer)
+  //if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
+
+
   c.Redirect(http.StatusTemporaryRedirect, "/profile")
 }
 
@@ -125,20 +149,39 @@ func logout(c *gin.Context) {
 
 //func logSession(req *http.Request) {
 func logSession(c *gin.Context) {
-  store := gothic.Store
-  fmt.Println("SESSION STORE", reflect.TypeOf(store), store)
-
-  //gothicSession, err := store.Get(c.Request, "_gothic_session")
+  //store := gothic.Store
+  //fmt.Println("SESSION STORE", reflect.TypeOf(store), store)
+  //storedSession, err := store.Get(c.Request, "_gothic_session")
   //fmt.Println("GOTHIC SESSION", reflect.TypeOf(gothicSession)) // , gothicSession
   //fmt.Println("GOTCHI SESSION ID", gothicSession.ID)
   //fmt.Println("GOTHIC SESSION VALUES", gothicSession.Values)
   //fmt.Println("GOTHIC SESSION OPTIONS", gothicSession.Options)
 
-  gothicSession, err := gothic.GetFromSession("_gothic_session", c.Request)
+  //providers := goth.GetProviders()
+  //for _, provider := range providers {
+	//	p := provider.Name()
+  //  fmt.Println("PROVIDER + SESSION NAME:", p + gothic.SessionName)
+	//	session, _ := gothic.Store.Get(c.Request, p + gothic.SessionName)
+  //  fmt.Println("PROVIDER SESSION:", reflect.TypeOf(session), session)
+	//	value := session.Values[p]
+  //  fmt.Println("SESSION VALUE:", value)
+	//	if _, ok := value.(string); ok {
+	//		fmt.Println(p)
+	//	}
+	//}
+
+  gothicSession, err := gothic.GetFromSession(gothic.SessionName, c.Request)
   if err != nil {
     fmt.Println("GOTHIC SESSION RETRIEVAL ERROR", err)
   } else {
     fmt.Println("GOTHIC SESSION", reflect.TypeOf(gothicSession), gothicSession)
+  }
+
+  providerSession, err := gothic.GetFromSession("openid-connect_gothic_session", c.Request)
+  if err != nil {
+    fmt.Println("PROVIDER SESSION RETRIEVAL ERROR", err)
+  } else {
+    fmt.Println("PROVIDER SESSION", reflect.TypeOf(providerSession), providerSession)
   }
 
   oidcSession, err := gothic.GetFromSession(providerName, c.Request)
@@ -280,11 +323,6 @@ func fetchToken(c *gin.Context) TokenResponse {
   return tr
 }
 
-
-
-
-
-
 // ISSUE USER INFO REQUEST
 // ... because gothic.CompleteUserAuth is not working
 func fetchUserInfo(c *gin.Context, tr TokenResponse) (goth.User) {
@@ -299,26 +337,27 @@ func fetchUserInfo(c *gin.Context, tr TokenResponse) (goth.User) {
 
   user, err := provider.FetchUser(&session)
   if err != nil { fmt.Println("FETCH USER ERROR", err) }
-  fmt.Println("USER", reflect.TypeOf(user))
-  //fmt.Println("GOTH USER INFO", reflect.TypeOf(user.RawData), user.RawData)
-  js, err := json.Marshal(user.RawData)
-  if err != nil { fmt.Println("JSON MARSHAL ERROR") }
-  fmt.Println("USER INFO:", string(js))
-
-  // STORE USER IN SESSION
-
-  //gothic.StoreInSession("my_goth_user", user, c.Request, c.Writer)
-  err = gothic.StoreInSession("message", "Hello World", c.Request, c.Writer)
-  if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
-
-  err = gothic.StoreInSession("my_user", string(js), c.Request, c.Writer)
-  if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
-
-  err = gothic.StoreInSession(providerName, session.Marshal(), c.Request, c.Writer)
-  if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
 
   return user
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // generates a random string
 // adapted from source: https://github.com/markbates/goth/blob/master/gothic/gothic.go#L82-L91
