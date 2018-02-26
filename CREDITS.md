@@ -7,6 +7,7 @@
   + [Net/URL](https://golang.org/pkg/net/url/)
   + [JSON](https://blog.golang.org/json-and-go)
   + [Parsing JSON Responses](http://blog.josephmisiti.com/parsing-json-responses-in-golang)
+  + [How to Correctly Serialize JSON String](http://goinbigdata.com/how-to-correctly-serialize-json-string-in-golang/)
 
 ### Datatypes
 
