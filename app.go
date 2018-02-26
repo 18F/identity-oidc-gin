@@ -49,7 +49,7 @@ func main() {
 
 // Registers login.gov as the OIDC identity provider.
 func configureProvider()  {
-  gothic.GetProviderName = func(req *http.Request) (string, error) { return providerName, nil} // sets the provider's name, bypasses error looking for provider name. see: https://github.com/markbates/goth/blob/master/gothic/gothic.go#L246
+  //gothic.GetProviderName = func(req *http.Request) (string, error) { return providerName, nil} // sets the provider's name, bypasses error looking for provider name (although I'm no longer seeing this error). see: https://github.com/markbates/goth/blob/master/gothic/gothic.go#L246
 
   discoveryUrl := providerUrl + "/.well-known/openid-configuration"
   callbackUrl := clientUrl + "/auth/login-gov/callback"
