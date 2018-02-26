@@ -13,45 +13,27 @@ import (
   "time"
   "github.com/gin-gonic/gin"
   "github.com/markbates/goth"
-  "github.com/s2t2/goth/gothic" // exports session access methods
   "github.com/markbates/goth/providers/openidConnect"
+  "github.com/s2t2/goth/gothic" // exports session access methods, waiting on PR merge
   "github.com/dgrijalva/jwt-go"
   "github.com/joho/godotenv"
-  //"github.com/gorilla/sessions"
 )
 
-type User struct {
-  Email string `json:"email"`
-  EmailVerified bool `json:"email_verified"`
-  GivenName string `json:"given_name"`
-  FamilyName string `json:"family_name"`
-  SSN string `json:"social_security_number"`
-  Address string `json:"address"`
-  Phone string `json:"phone"`
-  PhoneVerified string `json:"phone_verified"`
+const providerUrl = "http://localhost:3000" // os.Getenv("PROVIDER_URL") // without trailing slash
+const providerName = "openid-connect" // required name for gothic OIDC provider
+const clientUrl = "http://localhost:8080" // os.Getenv("CLIENT_URL") // without trailing slash
+const clientId = "urn:gov:gsa:openidconnect:sp:gin" // os.Getenv("CLIENT_ID")
+const clientSecret = "super secret" // os.Getenv("CLIENT_SECRET") // can use SESSION_SECRET?
 
-  // AUTH INFO
-  //Sub string `json:"sub"` // "abc-def-123-xyz"
-  //Iss string `json:"iss"` // "http://localhost:3000/"
-  //Acr string `json:"acr"` // "http://idmanagement.gov/ns/assurance/loa/1"
-  //Aud string `json:"aud"` // "urn:gov:gsa:openidconnect:sp:gin"
-  //Exp int `json:"exp"` // 1519674084
-  //Nonce string `json:"nonce"` // "abcdef123456"
-
-  // JWT INFO?
-  //iat int `json:"iat"`
-  //jti string `json:"iat"`
-  //nbf string `json:"nbf"`
-  //atHash string `json:"at_hash"`
-  //cHash string `json:"c_hash"`
+func init()  {
+  err := godotenv.Load()
+  if err != nil { fmt.Println("Error loading .env file") }
+  fmt.Println("SESSION SECRET:", os.Getenv("SESSION_SECRET")) //todo: don't log this, but check for it.
 }
 
 func main() {
-  err := godotenv.Load()
-  if err != nil {fmt.Println("Error loading .env file")}
-  fmt.Println("SESSION SECRET", os.Getenv("SESSION_SECRET"))
+  configureProvider()
 
-  useProvider()
   router := gin.Default()
   router.LoadHTMLGlob("views/*") // load views
   router.Static("/assets", "./assets") // load static assets
@@ -65,45 +47,45 @@ func main() {
   router.Run() // listen and serve on 0.0.0.0:8080
 }
 
+// Registers login.gov as the OIDC identity provider.
+func configureProvider()  {
+  gothic.GetProviderName = func(req *http.Request) (string, error) { return providerName, nil} // sets the provider's name, bypasses error looking for provider name. see: https://github.com/markbates/goth/blob/master/gothic/gothic.go#L246
+
+  discoveryUrl := providerUrl + "/.well-known/openid-configuration"
+  callbackUrl := clientUrl + "/auth/login-gov/callback"
+
+  provider, err := openidConnect.New(clientId, clientSecret, callbackUrl, discoveryUrl)
+  if err != nil { fmt.Println("OIDC PROVIDER ERROR", err) }
+  fmt.Println("USING OIDC PROVIDER", reflect.TypeOf(provider))
+
+  goth.UseProviders(provider)
+}
+
+//
+// ROUTE HANDLERS
+//
+
 func renderIndex(c *gin.Context) {
   fmt.Println("------------")
   fmt.Println("INDEX")
   fmt.Println("------------")
-  logSession(c)
 
-  c.HTML(http.StatusOK, "index.tmpl", gin.H{"title": "Login.gov OIDC Client (Gin)",})
+  c.HTML(http.StatusOK, "index.tmpl", gin.H{"title": "Login.gov OIDC Client (Gin)"})
 }
 
 func renderProfile(c *gin.Context) {
   fmt.Println("------------")
   fmt.Println("PROFILE")
   fmt.Println("------------")
-  logSession(c)
 
-  //user := User{Email: "test.user@gmail.com", GivenName: "Test", FamilyName:"User"}
-
-  // GET USER FROM SESSION
-
-  js, err := gothic.GetFromSession("my_user", c.Request)
+  user, err := getUserFromSession(c)
   if err != nil {
     fmt.Println("COULDN'T FIND AN AUTHENTICATED USER", err)
     redirectIndex(c) // todo: pass a flash message like "Please log in"
   }
 
-  var u User
-  b := []byte(js) // convert JSON string into something that can be unmarshalled into a struct, bypasses "cannot use js (type string) as type []byte in argument to json.Unmarshal"
-  parseErr := json.Unmarshal(b, &u)
-  if parseErr != nil {
-    fmt.Println("ERROR PARSING USER SESSION INFO", err)
-  }
-  fmt.Println("PROFILE USER", reflect.TypeOf(u), u)
-  fmt.Println("...", u.Email, u.EmailVerified)
-  fmt.Println("...", u.Phone, u.PhoneVerified) // not availz w/ LOA1
-  fmt.Println("...", u.GivenName, u.FamilyName) // not availz w/ LOA1
-  fmt.Println("...", u.SSN, u.Address) // not availz w/ LOA1
-
   var blocks [5]int
-  c.HTML(http.StatusOK, "profile.tmpl", gin.H{"title": "Profile Page", "blocks": blocks, "user": u})
+  c.HTML(http.StatusOK, "profile.tmpl", gin.H{"title": "Profile Page", "blocks": blocks, "user": user})
 }
 
 func redirectIndex(c *gin.Context){
@@ -114,31 +96,22 @@ func redirectProfile(c *gin.Context)  {
   c.Redirect(http.StatusTemporaryRedirect, "/profile")
 }
 
-// LOGIN
-// ... Logingothic.BeginAuthHandler(c.Writer, c.Request)
-// ... ran into server errors about missing acr values, nonce, etc.
-// ... so assemble a custom auth url instead
-// ... and redirect user there
 func login(c *gin.Context)  {
   fmt.Println("------------")
-  fmt.Println("AUTH")
+  fmt.Println("LOGIN")
   fmt.Println("------------")
-  logSession(c)
 
   provider, err := goth.GetProvider(providerName)
   if err != nil { fmt.Println("PROVIDER LOOKUP ERROR") }
-  //fmt.Println("PROVIDER:", reflect.TypeOf(provider), provider)
 
   state := generateNonce()
-  //fmt.Println("STATE:", reflect.TypeOf(state), state)
 
   sesh, err := provider.BeginAuth(state)
   if err != nil { fmt.Println("BEGIN AUTH ERROR") }
   fmt.Println("SESSION:", reflect.TypeOf(sesh), sesh)
 
-  authURL, err := loginGovAuthURL(sesh, state)
+  authURL, err := loginGovAuthURL(sesh, state) // assemble a custom auth url because gothic.BeginAuthHandler(c.Writer, c.Request) ran into server errors about missing acr values, nonce, etc.
   if err != nil { fmt.Println("AUTH URL COMPLIATION ERROR") }
-  //fmt.Println("AUTH URL:", reflect.TypeOf(authURL), authURL)
 
   c.Redirect(http.StatusTemporaryRedirect, authURL)
 }
@@ -148,7 +121,6 @@ func callback(c *gin.Context)  {
   fmt.Println("------------")
   fmt.Println("CALLBACK")
   fmt.Println("------------")
-  logSession(c)
 
   tokenResponse := fetchToken(c)
 
@@ -173,71 +145,93 @@ func logout(c *gin.Context) {
   fmt.Println("------------")
   fmt.Println("LOGOUT")
   fmt.Println("------------")
-  err := gothic.Logout(c.Writer, c.Request)
+
+  err := gothic.Logout(c.Writer, c.Request) // clears the session
   if err != nil { fmt.Println("LOGOUT ERROR", err) }
-  c.Redirect(http.StatusTemporaryRedirect, "/")
+
+  redirectIndex(c)
 }
 
-//func logSession(req *http.Request) {
-func logSession(c *gin.Context) {
-  //store := gothic.Store
-  //fmt.Println("SESSION STORE", reflect.TypeOf(store), store)
-  //storedSession, err := store.Get(c.Request, "_gothic_session")
-  //fmt.Println("GOTHIC SESSION", reflect.TypeOf(gothicSession)) // , gothicSession
-  //fmt.Println("GOTCHI SESSION ID", gothicSession.ID)
-  //fmt.Println("GOTHIC SESSION VALUES", gothicSession.Values)
-  //fmt.Println("GOTHIC SESSION OPTIONS", gothicSession.Options)
 
-  //providers := goth.GetProviders()
-  //for _, provider := range providers {
-	//	p := provider.Name()
-  //  fmt.Println("PROVIDER + SESSION NAME:", p + gothic.SessionName)
-	//	session, _ := gothic.Store.Get(c.Request, p + gothic.SessionName)
-  //  fmt.Println("PROVIDER SESSION:", reflect.TypeOf(session), session)
-	//	value := session.Values[p]
-  //  fmt.Println("SESSION VALUE:", value)
-	//	if _, ok := value.(string); ok {
-	//		fmt.Println(p)
-	//	}
-	//}
 
-  //gothicSession, err := gothic.GetFromSession(gothic.SessionName, c.Request)
-  //if err != nil {
-  //  fmt.Println("GOTHIC SESSION RETRIEVAL ERROR", err)
-  //} else {
-  //  fmt.Println("GOTHIC SESSION", reflect.TypeOf(gothicSession), gothicSession)
-  //}
-//
-  //providerSession, err := gothic.GetFromSession("openid-connect_gothic_session", c.Request)
-  //if err != nil {
-  //  fmt.Println("PROVIDER SESSION RETRIEVAL ERROR", err)
-  //} else {
-  //  fmt.Println("PROVIDER SESSION", reflect.TypeOf(providerSession), providerSession)
-  //}
-//
-  //oidcSession, err := gothic.GetFromSession(providerName, c.Request)
-  //if err != nil {
-  //  fmt.Println("OIDC SESSION RETRIEVAL ERROR", err)
-  //} else {
-  //  fmt.Println("OIDC SESSION", reflect.TypeOf(oidcSession), oidcSession)
-  //  //fmt.Println("OIDC SESSION ID", oidcSession.ID)
-  //  //fmt.Println("OIDC SESSION VALUES", oidcSession.Values)
-  //  //fmt.Println("OIDC SESSION OPTIONS", oidcSession.Options)
-  //}
 
-  //msg, err := gothic.GetFromSession("message", c.Request)
-  //if err != nil {
-  //  fmt.Println("MESSAGE RETRIEVAL ERROR", err)
-  //} else {
-  //  fmt.Println("MESSAGE", reflect.TypeOf(msg), msg)
-  //}
 
-  u, err := gothic.GetFromSession("my_user", c.Request)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+type User struct {
+  Email string `json:"email"`
+  EmailVerified bool `json:"email_verified"`
+  GivenName string `json:"given_name"`
+  FamilyName string `json:"family_name"`
+  SSN string `json:"social_security_number"`
+  Address string `json:"address"`
+  Phone string `json:"phone"`
+  PhoneVerified string `json:"phone_verified"`
+
+  //Sub string `json:"sub"` // "abc-def-123-xyz"
+  //Iss string `json:"iss"` // "http://localhost:3000/"
+  //Acr string `json:"acr"` // "http://idmanagement.gov/ns/assurance/loa/1"
+  //Aud string `json:"aud"` // "urn:gov:gsa:openidconnect:sp:gin"
+  //Exp int `json:"exp"` // 1519674084
+  //Nonce string `json:"nonce"` // "abcdef123456"
+
+  //iat int `json:"iat"`
+  //jti string `json:"iat"`
+  //nbf string `json:"nbf"`
+  //atHash string `json:"at_hash"`
+  //cHash string `json:"c_hash"`
+}
+
+// GET USER FROM SESSION
+func getUserFromSession(c *gin.Context) (User, error) {
+  js, err := gothic.GetFromSession("my_user", c.Request)
   if err != nil {
     fmt.Println("ERROR RETRIEVING USER FROM SESSION", err)
-  } else {
-    fmt.Println("USER RETRIEVED FROM SESSION", reflect.TypeOf(u))
+    return User{}, err
   }
+
+  var user User
+  b := []byte(js) // convert JSON string into something that can be unmarshalled into a struct, bypasses "cannot use js (type string) as type []byte in argument to json.Unmarshal"
+  parseErr := json.Unmarshal(b, &user)
+  if parseErr != nil {
+    fmt.Println("ERROR PARSING USER INFO FROM SESSION", err)
+    return User{}, err
+  }
+
+  fmt.Println("PROFILE USER", reflect.TypeOf(user), user)
+  //fmt.Println("...", user.Email, user.EmailVerified)
+  //fmt.Println("...", user.Phone, user.PhoneVerified) // not availz w/ LOA1
+  //fmt.Println("...", user.GivenName, user.FamilyName) // not availz w/ LOA1
+  //fmt.Println("...", user.SSN, user.Address) // not availz w/ LOA1
+
+  return user, nil
 }
 
 //
@@ -250,26 +244,6 @@ type TokenResponse struct {
   TokenType string `json:"token_type"`
   ExpiresIn int `json:"expires_in"`
   IDToken string `json:"id_token"`
-}
-
-const providerName = "openid-connect"
-const clientId = "urn:gov:gsa:openidconnect:sp:gin" // os.Getenv("OPENID_CONNECT_KEY")
-
-// registers login.gov as the OIDC identity provider
-func useProvider()  {
-  gothic.GetProviderName = func(req *http.Request) (string, error) { return providerName, nil}
-
-  const clientSecret = "super secret" // os.Getenv("OPENID_CONNECT_SECRET")
-  const callbackUrl = "http://localhost:8080/auth/login-gov/callback"
-  const discoveryUrl = "http://localhost:3000/.well-known/openid-configuration"
-
-  provider, err := openidConnect.New(clientId, clientSecret, callbackUrl, discoveryUrl)
-  if err != nil { fmt.Println("OIDC PROVIDER ERROR", err) }
-  if provider != nil {
-    fmt.Println("USING OIDC PROVIDER", reflect.TypeOf(provider))
-
-    goth.UseProviders(provider)
-  }
 }
 
 // adds login.gov-specific params to the the identity provider's auth URL
