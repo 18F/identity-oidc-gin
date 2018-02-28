@@ -25,6 +25,7 @@ var clientUrl string = "http://localhost:8080" // refers to this application
 var clientId string = "urn:gov:gsa:openidconnect:sp:gin"
 var clientSecret string
 const userSessionKey = "my_user" // refers to a session key/value pair where user information will be stored
+const pemPath = "keys/login-gov/sp_gin_demo.key" // the location of a private key (PEM) file in this repo which will be used to sign the token request, the corresponding matching public key should be registered with login.gov
 
 func init()  {
   loadEnvironmentVars()
@@ -287,8 +288,6 @@ func fetchToken(c *gin.Context) TokenResponse {
 func generateJWT(tokenURL string) (string, error) {
 
   // Parse key file...
-
-  pemPath := "keys/login-gov/sp_gin_demo.key"
 
   pem, err := ioutil.ReadFile(pemPath)
   if err != nil {
