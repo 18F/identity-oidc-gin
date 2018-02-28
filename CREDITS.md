@@ -48,4 +48,5 @@
 
 ## Assets
 
-Stylesheets and images borrowed from the [Sinatra SAML Client](https://github.com/18F/identity-sp-sinatra/).
+  + Stylesheets and images borrowed from the [Sinatra SAML Client](https://github.com/18F/identity-sp-sinatra/).
+  + [Demo GIF generation instructions](https://gist.github.com/dergachev/4627207)
