@@ -5,7 +5,7 @@ import (
   "encoding/json"
   "fmt"
   "io/ioutil"
-  "math/rand"
+  "math/rand" // TODO: use crypto/rand instead: https://github.com/golang/go/wiki/CodeReviewComments#crypto-rand
   "net/http"
   "net/url"
   "os"
@@ -40,7 +40,6 @@ func main() {
   router.GET("/", renderIndex)
   router.GET("/profile", renderProfile)
   router.GET("/auth/login-gov/login/loa-:loaNum", login)
-  //router.GET("/auth/login-gov/login/loa-3", login)
   router.GET("/auth/login-gov/callback", callback)
   router.GET("/auth/login-gov/logout", logout)
   router.GET("/auth/login-gov/logout/rp", logout) // TODO: rpLogout
@@ -48,14 +47,15 @@ func main() {
 }
 
 // Loads environment variables from the .env file, validates them,
-// and assigns them to program vars for further reference.
+// and assigns them to program vars for further reference,
+// overwriting default values as necessary.
 func loadEnvironmentVars()  {
   fmt.Println("------------")
   fmt.Println("ENV")
   fmt.Println("------------")
 
   err := godotenv.Load()
-  if err != nil { fmt.Println("Error loading .env file") }
+  if err != nil { fmt.Println("Error loading .env file", err) }
 
   if os.Getenv("SESSION_SECRET") == "" { panic("Oh, please set the SESSION_SECRET environment variable!") } // SESSION_SECRET must be set. See: https://github.com/markbates/goth/blob/12866fa2c65b81b6b7defe879dcd4af2477a9a29/gothic/gothic.go#L113
 
@@ -82,17 +82,16 @@ func loadEnvironmentVars()  {
 // Registers login.gov as the OIDC identity provider.
 // See: https://developers.login.gov/oidc/#configuration.
 func configureProvider()  {
-  //gothic.GetProviderName = func(req *http.Request) (string, error) { return providerName, nil} // sets the provider's name, bypasses error looking for provider name (although I'm no longer seeing this error). see: https://github.com/markbates/goth/blob/master/gothic/gothic.go#L246
-
   discoveryUrl := providerUrl + "/.well-known/openid-configuration"
   callbackUrl := clientUrl + "/auth/login-gov/callback"
 
   provider, err := openidConnect.New(clientId, clientSecret, callbackUrl, discoveryUrl)
   if err != nil { fmt.Println("OIDC PROVIDER ERROR", err) }
-  fmt.Println("OIDC PROVIDER:", reflect.TypeOf(provider))
-  fmt.Println("------------")
 
   goth.UseProviders(provider)
+
+  fmt.Println("OIDC PROVIDER:", reflect.TypeOf(provider))
+  fmt.Println("------------")
 }
 
 //
@@ -138,18 +137,18 @@ func login(c *gin.Context)  {
   fmt.Println("------------")
 
   provider, err := goth.GetProvider(providerName)
-  if err != nil { fmt.Println("PROVIDER LOOKUP ERROR") }
+  if err != nil { fmt.Println("PROVIDER LOOKUP ERROR", err) }
 
   state := generateNonce()
 
   sesh, err := provider.BeginAuth(state)
-  if err != nil { fmt.Println("BEGIN AUTH ERROR") }
+  if err != nil { fmt.Println("BEGIN AUTH ERROR", err) }
   fmt.Println("SESSION:", reflect.TypeOf(sesh), sesh)
 
   loaNum := c.Param("loaNum")
 
   authURL, err := loginGovAuthURL(sesh, state, loaNum)
-  if err != nil { fmt.Println("AUTH URL COMPLIATION ERROR") }
+  if err != nil { fmt.Println("AUTH URL COMPLIATION ERROR", err) }
 
   c.Redirect(http.StatusTemporaryRedirect, authURL)
 }
@@ -206,7 +205,7 @@ func generateNonce() string {
 
 // Assembles a custom authorization url, including login.gov-specific params.
 // Because gothic.BeginAuthHandler(c.Writer, c.Request) ran into server errors about missing acr values, nonce, etc.
-// Adapted from source: https://github.com/transcom/mymove/blob/defe4a5d91c3ed756ee243beea2050368015870f/pkg/auth/auth.go#L59
+// Adapted from source: https://github.com/transcom/mymove/blob/defe4a5d91c3ed756ee243beea2050368015870f/pkg/auth/auth.go#L59.
 func loginGovAuthURL(session goth.Session, state string, loaNum string) (string, error)  {
   if (loaNum != "1" && loaNum != "3") {
     fmt.Println("Oh, expecting either LOA 1 or LOA 3. Using LOA 1 by default.")
@@ -226,7 +225,7 @@ func loginGovAuthURL(session goth.Session, state string, loaNum string) (string,
 
   authURL.RawQuery = params.Encode()
 
-  return authURL.String(), err
+  return authURL.String(), nil
 }
 
 // Stores token information.
@@ -246,12 +245,11 @@ func fetchToken(c *gin.Context) TokenResponse {
 
   // Compile token request params...
 
+  clientAssertion, err := generateJWT(tokenURL)
+  if err != nil {fmt.Println("CLIENT ASSERTION ERROR", err) }
+
   q:= c.Request.URL.Query()
   code := q["code"][0]
-  //state := q["state"][0]
-
-  clientAssertion, err := generateJWT(tokenURL)
-  if err != nil {fmt.Println("CLIENT ASSERTION ERROR") }
 
   tokenParams := url.Values{}
   tokenParams.Set("client_assertion", clientAssertion)
@@ -262,7 +260,7 @@ func fetchToken(c *gin.Context) TokenResponse {
   // Issue token request...
 
   resp, err := http.PostForm(tokenURL, tokenParams)
-  if err != nil { fmt.Println("POST REQUEST ERROR") }
+  if err != nil { fmt.Println("POST REQUEST ERROR", err) }
   fmt.Println("TOKEN RESPONSE:", reflect.TypeOf(resp), resp.Status)
 
   // Parse token response...
@@ -285,7 +283,7 @@ func fetchToken(c *gin.Context) TokenResponse {
 }
 
 // Generates a JSON Web Token (JWT) signed using a private key (PEM) file.
-// ... adapted from source: https://github.com/transcom/mymove/blob/b6f98942d64d8d12f502bea36d26ad65a5d8cd18/pkg/auth/auth.go#L193
+// Adapted from source: https://github.com/transcom/mymove/blob/b6f98942d64d8d12f502bea36d26ad65a5d8cd18/pkg/auth/auth.go#L193.
 func generateJWT(tokenURL string) (string, error) {
 
   // Parse key file...
@@ -333,17 +331,17 @@ func generateJWT(tokenURL string) (string, error) {
 // Because gothic.CompleteUserAuth is not working (most likely due to customization of the login.gov OIDC provider).
 // See: https://developers.login.gov/oidc/#user-info.
 func fetchUserInfo(c *gin.Context, tr TokenResponse) (goth.User, error) {
-  session := openidConnect.Session{
-    AccessToken: tr.AccessToken,
-    ExpiresAt: time.Now().Add(time.Second * time.Duration(tr.ExpiresIn)),
-    IDToken: tr.IDToken,
-  } // TODO: use an existing goth session instead?
-
   provider, err := goth.GetProvider(providerName)
   if err != nil {
     fmt.Println("GET PROVIDER ERROR", err)
     return goth.User{}, err
   }
+
+  session := openidConnect.Session{
+    AccessToken: tr.AccessToken,
+    ExpiresAt: time.Now().Add(time.Second * time.Duration(tr.ExpiresIn)),
+    IDToken: tr.IDToken,
+  } // TODO: use an existing goth session instead?
 
   gothUser, err := provider.FetchUser(&session)
   if err != nil {
@@ -411,10 +409,6 @@ func getUserFromSession(c *gin.Context) (User, error) {
   }
 
   fmt.Println("PROFILE USER", reflect.TypeOf(user), user)
-  //fmt.Println("...", user.Email, user.EmailVerified)
-  //fmt.Println("...", user.Phone, user.PhoneVerified) // not availz w/ LOA1
-  //fmt.Println("...", user.GivenName, user.FamilyName) // not availz w/ LOA1
-  //fmt.Println("...", user.SSN, user.Address) // not availz w/ LOA1
 
   return user, nil
 }
