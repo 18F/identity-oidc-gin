@@ -39,8 +39,8 @@ func main() {
   router.Static("/assets", "./assets") // load static assets
   router.GET("/", renderIndex)
   router.GET("/profile", renderProfile)
-  router.GET("/auth/login-gov/login/loa-1", login) // TODO: login(1)
-  router.GET("/auth/login-gov/login/loa-3", login) // TODO: login(3)
+  router.GET("/auth/login-gov/login/loa-:loaNum", login)
+  //router.GET("/auth/login-gov/login/loa-3", login)
   router.GET("/auth/login-gov/callback", callback)
   router.GET("/auth/login-gov/logout", logout)
   router.GET("/auth/login-gov/logout/rp", logout) // TODO: rpLogout
@@ -146,7 +146,9 @@ func login(c *gin.Context)  {
   if err != nil { fmt.Println("BEGIN AUTH ERROR") }
   fmt.Println("SESSION:", reflect.TypeOf(sesh), sesh)
 
-  authURL, err := loginGovAuthURL(sesh, state)
+  loaNum := c.Param("loaNum")
+
+  authURL, err := loginGovAuthURL(sesh, state, loaNum)
   if err != nil { fmt.Println("AUTH URL COMPLIATION ERROR") }
 
   c.Redirect(http.StatusTemporaryRedirect, authURL)
@@ -205,7 +207,12 @@ func generateNonce() string {
 // Assembles a custom authorization url, including login.gov-specific params.
 // Because gothic.BeginAuthHandler(c.Writer, c.Request) ran into server errors about missing acr values, nonce, etc.
 // Adapted from source: https://github.com/transcom/mymove/blob/defe4a5d91c3ed756ee243beea2050368015870f/pkg/auth/auth.go#L59
-func loginGovAuthURL(session goth.Session, state string) (string, error)  {
+func loginGovAuthURL(session goth.Session, state string, loaNum string) (string, error)  {
+  if (loaNum != "1" && loaNum != "3") {
+    fmt.Println("Oh, expecting either LOA 1 or LOA 3. Using LOA 1 by default.")
+    loaNum = "1" // fail gracefully, use LOA1
+  }
+
   urlStr, err := session.GetAuthURL()
   if err != nil { return "", err}
 
@@ -213,7 +220,7 @@ func loginGovAuthURL(session goth.Session, state string) (string, error)  {
   if err != nil { return "", err}
 
   params := authURL.Query()
-  params.Add("acr_values", "http://idmanagement.gov/ns/assurance/loa/1") //TODO: variable LOA 1 or 3
+  params.Add("acr_values", "http://idmanagement.gov/ns/assurance/loa/" + loaNum)
   params.Add("nonce", state)
   params.Set("scope", "openid email address phone profile:birthdate profile:name profile social_security_number")
 
@@ -351,12 +358,13 @@ func fetchUserInfo(c *gin.Context, tr TokenResponse) (goth.User, error) {
 type User struct {
   Email string `json:"email"`
   EmailVerified bool `json:"email_verified"`
+  Phone string `json:"phone"`
+  PhoneVerified bool `json:"phone_verified"`
   GivenName string `json:"given_name"`
   FamilyName string `json:"family_name"`
+  Address UserAddress `json:"address"`
+  Birthdate string `json:"birthdate"`
   SSN string `json:"social_security_number"`
-  Address string `json:"address"`
-  Phone string `json:"phone"`
-  PhoneVerified string `json:"phone_verified"`
 
   //Sub string `json:"sub"` // "abc-def-123-xyz"
   //Iss string `json:"iss"` // "http://localhost:3000/"
@@ -370,6 +378,15 @@ type User struct {
   //nbf string `json:"nbf"`
   //atHash string `json:"at_hash"`
   //cHash string `json:"c_hash"`
+}
+
+// Stores user address information, which is a nested JSON object when returned by the login.gov server.
+type UserAddress struct {
+  Street string `json:"street_address"` // "1600 Penn"
+  Locality string `json:"locality"` // "Washington"
+  Region string `json:"region"` // "DC"
+  PostalCode string `json:"postal_code"` // "20001"
+  Full string `json:"formatted"` // "1600 Penn \nWashington, DC 20001"
 }
 
 // Retrieves user info from the session, then converts it into a more usable User object.
@@ -389,8 +406,8 @@ func getUserFromSession(c *gin.Context) (User, error) {
   b := []byte(js) // convert JSON string into something that can be unmarshalled into a struct, bypasses "cannot use js (type string) as type []byte in argument to json.Unmarshal"
   parseErr := json.Unmarshal(b, &user)
   if parseErr != nil {
-    fmt.Println("ERROR PARSING USER INFO FROM SESSION", err)
-    return User{}, err
+    fmt.Println("ERROR PARSING USER INFO FROM SESSION", parseErr)
+    return User{}, parseErr
   }
 
   fmt.Println("PROFILE USER", reflect.TypeOf(user), user)
