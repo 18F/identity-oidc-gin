@@ -170,7 +170,7 @@ func callback(c *gin.Context)  {
   err = gothic.StoreInSession(userSessionKey, string(js), c.Request, c.Writer)
   if err != nil { fmt.Println("SESSION STORAGE ERROR", err) }
 
-  renderProfile(c)
+  redirectProfile(c)
 }
 
 // Removes user information from the session and redirects the user.
