@@ -398,7 +398,7 @@ type User struct {
   //atHash string `json:"at_hash"`
   //cHash string `json:"c_hash"`
 
-  IDToken string `json:"id_token"`
+  IDToken string `json:"id_token"` // add this attribute (on top of what naturally exists in the original gothic.User.RawData) to enable RP-Initiated Logout
 }
 
 // Stores user address information, which is a nested JSON object when returned by the login.gov server.
