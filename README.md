@@ -13,8 +13,8 @@ Install Go (version 1.9.4).
 Install the source code:
 
 ```sh
-go get github.com/s2t2/identity-oidc-gin
-cd $GOPATH/src/github.com/s2t2/identity-oidc-gin
+go get github.com/18F/identity-oidc-gin
+cd $GOPATH/src/github.com/18F/identity-oidc-gin
 ```
 
 ## Configuration
