@@ -52,3 +52,5 @@ go run app.go
 ```
 
 Then view in browser at localhost:8080.
+
+## [License](/LICENSE.md)
