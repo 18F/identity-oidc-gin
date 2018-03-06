@@ -44,7 +44,7 @@ func main() {
   router.GET("/auth/login-gov/login/loa-:loaNum", login)
   router.GET("/auth/login-gov/callback", callback)
   router.GET(logoutUrlPath, logout)
-  router.GET("/auth/login-gov/logout/rp", rpLogout)
+  router.GET("/auth/login-gov/rp-logout", rpLogout)
   router.Run() // listen and serve on 0.0.0.0:8080
 }
 
@@ -164,7 +164,6 @@ func callback(c *gin.Context)  {
 
   gothicUser, err := fetchUserInfo(c, tokenResponse)
   if err != nil { fmt.Println("FETCH USER ERROR", err) }
-  //fmt.Println("GOTHIC USER", gothicUser)
   gothicUser.RawData["id_token"] = tokenResponse.IDToken // required for RP-Initiated Logout
 
   js, err := json.Marshal(gothicUser.RawData)
@@ -206,7 +205,7 @@ func rpLogout(c *gin.Context) {
 
   token := user.IDToken
   state := user.Nonce
-  endSessionEndpoint := "http://localhost:3000/openid_connect/logout" //TODO: get from provider.Config
+  endSessionEndpoint := providerUrl + "/openid_connect/logout" // TODO: get this from provider.OpenidConfig after merge of https://github.com/markbates/goth/pull/207
   postLogoutRedirectUrl := clientUrl + logoutUrlPath // redirect to the logout path to sign the user out of this app after the response comes back, or else the user will still be signed in!
   rpLogoutURL := endSessionEndpoint + "?id_token_hint=" + token + "&post_logout_redirect_uri=" + postLogoutRedirectUrl + "&state=" + state
 
