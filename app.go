@@ -26,6 +26,7 @@ var clientId string = "urn:gov:gsa:openidconnect:sp:gin"
 var clientSecret string
 const userSessionKey = "my_user" // refers to a session key/value pair where user information will be stored
 const pemPath = "keys/login-gov/sp_gin_demo.key" // the location of a private key (PEM) file in this repo which will be used to sign the token request, the corresponding matching public key should be registered with login.gov
+const logoutUrlPath = "/auth/login-gov/logout"
 
 func init()  {
   loadEnvironmentVars()
@@ -42,8 +43,8 @@ func main() {
   router.GET("/profile", renderProfile)
   router.GET("/auth/login-gov/login/loa-:loaNum", login)
   router.GET("/auth/login-gov/callback", callback)
-  router.GET("/auth/login-gov/logout", logout)
-  router.GET("/auth/login-gov/logout/rp", logout) // TODO: rpLogout
+  router.GET(logoutUrlPath, logout)
+  router.GET("/auth/login-gov/rp-logout", rpLogout)
   router.Run() // listen and serve on 0.0.0.0:8080
 }
 
@@ -52,8 +53,7 @@ func main() {
 // overwriting default values as necessary.
 func loadEnvironmentVars()  {
   fmt.Println("------------")
-  fmt.Println("ENV")
-  fmt.Println("------------")
+  fmt.Println("ENV ...")
 
   err := godotenv.Load()
   if err != nil { fmt.Println("Error loading .env file", err) }
@@ -164,6 +164,7 @@ func callback(c *gin.Context)  {
 
   gothicUser, err := fetchUserInfo(c, tokenResponse)
   if err != nil { fmt.Println("FETCH USER ERROR", err) }
+  gothicUser.RawData["id_token"] = tokenResponse.IDToken // required for RP-Initiated Logout
 
   js, err := json.Marshal(gothicUser.RawData)
   if err != nil { fmt.Println("JSON MARSHAL ERROR", err) }
@@ -175,6 +176,7 @@ func callback(c *gin.Context)  {
   redirectProfile(c)
 }
 
+// Logout from this application, but not from login.gov.
 // Removes user information from the session and redirects the user.
 func logout(c *gin.Context) {
   fmt.Println("------------")
@@ -185,6 +187,28 @@ func logout(c *gin.Context) {
   if err != nil { fmt.Println("LOGOUT ERROR", err) }
 
   redirectIndex(c)
+}
+
+// Logout from this application and from login.gov (using RP-Initiated Logout).
+// Adapted from source: https://github.com/18F/identity-oidc-expressjs/blob/master/routes/auth/login-gov.js#L35-L47.
+func rpLogout(c *gin.Context) {
+  fmt.Println("------------")
+  fmt.Println("RP-INITIATED LOGOUT")
+  fmt.Println("------------")
+
+  user, err := getUserFromSession(c)
+  if err != nil { // safeguard against unauthorized user manually navigating to this route
+    fmt.Println("COULDN'T FIND AN AUTHENTICATED USER", err)
+    redirectIndex(c) // TODO: pass a flash message like "Please log in".
+  }
+
+  token := user.IDToken
+  state := user.Nonce
+  endSessionEndpoint := providerUrl + "/openid_connect/logout" // TODO: get this from provider.OpenidConfig after merge of https://github.com/markbates/goth/pull/207
+  postLogoutRedirectUrl := clientUrl + logoutUrlPath // redirect to the logout path to sign the user out of this app after the response comes back, or else the user will still be signed in!
+  rpLogoutURL := endSessionEndpoint + "?id_token_hint=" + token + "&post_logout_redirect_uri=" + postLogoutRedirectUrl + "&state=" + state
+
+  c.Redirect(http.StatusTemporaryRedirect, rpLogoutURL)
 }
 
 //
@@ -278,8 +302,6 @@ func fetchToken(c *gin.Context) TokenResponse {
   if err != nil { fmt.Println("JSON MARSHAL ERROR", err) }
   fmt.Println("TOKEN RESPONSE JSON:", string(js))
 
-  //TODO: store token and state in session to enable RP-initiated logout
-
   return tr
 }
 
@@ -368,13 +390,15 @@ type User struct {
   //Acr string `json:"acr"` // "http://idmanagement.gov/ns/assurance/loa/1"
   //Aud string `json:"aud"` // "urn:gov:gsa:openidconnect:sp:gin"
   //Exp int `json:"exp"` // 1519674084
-  //Nonce string `json:"nonce"` // "abcdef123456"
+  Nonce string `json:"nonce"` // "abcdef123456"
 
   //iat int `json:"iat"`
   //jti string `json:"iat"`
   //nbf string `json:"nbf"`
   //atHash string `json:"at_hash"`
   //cHash string `json:"c_hash"`
+
+  IDToken string `json:"id_token"` // add this attribute (on top of what naturally exists in the original gothic.User.RawData) to enable RP-Initiated Logout
 }
 
 // Stores user address information, which is a nested JSON object when returned by the login.gov server.
