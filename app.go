@@ -190,7 +190,6 @@ func logout(c *gin.Context) {
 }
 
 // Logout from this application and from login.gov (using RP-Initiated Logout).
-// Removes user information from the session and redirects the user.
 // Adapted from source: https://github.com/18F/identity-oidc-expressjs/blob/master/routes/auth/login-gov.js#L35-L47.
 func rpLogout(c *gin.Context) {
   fmt.Println("------------")
