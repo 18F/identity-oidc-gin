@@ -14,7 +14,7 @@ import (
   "github.com/gin-gonic/gin"
   "github.com/markbates/goth"
   "github.com/markbates/goth/providers/openidConnect"
-  "github.com/s2t2/goth/gothic" // exports session access methods; TODO: switch back to markbates/gothic after merge of https://github.com/markbates/goth/pull/210
+  "github.com/markbates/goth/gothic"
   "github.com/dgrijalva/jwt-go"
   "github.com/joho/godotenv"
 )
