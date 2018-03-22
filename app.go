@@ -4,8 +4,9 @@ import (
   "encoding/base64"
   "encoding/json"
   "fmt"
+  "io"
   "io/ioutil"
-  "math/rand" // TODO: use crypto/rand instead: https://github.com/golang/go/wiki/CodeReviewComments#crypto-rand
+  "crypto/rand"
   "net/http"
   "net/url"
   "os"
@@ -216,16 +217,14 @@ func rpLogout(c *gin.Context) {
 //
 
 // Generates a random string.
-// Adapted from source: https://github.com/markbates/goth/blob/master/gothic/gothic.go#L82-L91.
-// Adapted from source: https://github.com/transcom/mymove/blob/defe4a5d91c3ed756ee243beea2050368015870f/pkg/auth/auth.go#L89.
-// TODO: use crypto/rand instead: https://github.com/golang/go/wiki/CodeReviewComments#crypto-rand.
+// Adapted from source: https://github.com/markbates/goth/blob/e9df47a5cfafff892245cf9c608878a43cef86f3/gothic/gothic.go#L79-L89.
 func generateNonce() string {
   nonceBytes := make([]byte, 64)
-  random := rand.New(rand.NewSource(time.Now().UnixNano()))
-  for i := 0; i < 64; i++ {
-    nonceBytes[i] = byte(random.Int63() % 256)
-  }
-  return base64.URLEncoding.EncodeToString(nonceBytes)
+	_, err := io.ReadFull(rand.Reader, nonceBytes)
+	if err != nil {
+		panic("gothic: source of randomness unavailable: " + err.Error())
+	}
+	return base64.URLEncoding.EncodeToString(nonceBytes)
 }
 
 // Assembles a custom authorization url, including login.gov-specific params.
