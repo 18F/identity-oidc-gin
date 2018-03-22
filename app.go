@@ -220,11 +220,11 @@ func rpLogout(c *gin.Context) {
 // Adapted from source: https://github.com/markbates/goth/blob/e9df47a5cfafff892245cf9c608878a43cef86f3/gothic/gothic.go#L79-L89.
 func generateNonce() string {
   nonceBytes := make([]byte, 64)
-	_, err := io.ReadFull(rand.Reader, nonceBytes)
-	if err != nil {
-		panic("gothic: source of randomness unavailable: " + err.Error())
-	}
-	return base64.URLEncoding.EncodeToString(nonceBytes)
+  _, err := io.ReadFull(rand.Reader, nonceBytes)
+  if err != nil {
+    panic("RANDOM GENERATION ERROR: " + err.Error())
+  }
+  return base64.URLEncoding.EncodeToString(nonceBytes)
 }
 
 // Assembles a custom authorization url, including login.gov-specific params.
